@@ -6,6 +6,10 @@
 > **适配目标：nezhahq/nezha v1.x，实测对照版本 v1.14.14（v1 线最新版）。**
 > 注意：nezhahq/nezha 的 main 分支现在是 **v2.x**（v2.7.0），与 v1 的 API/前端结构不同。
 > 本项目只针对 v1.x；如果你用的是 v2，请勿直接使用（见“已知限制”）。
+>
+> **有 v2 版了：** 见下文 [NezhaBeautify v2](#nezhaBeautify-v2) 一节。
+> `NezhaBeautify-v2.html` / `NezhaBeautify-v2.js` 适配 Nezha **v2.6.2**，
+> 是在本站（status.alicloud.ru，Nezha 2.6.2）实测诊断后做的移植版。
 
 ## 功能
 
@@ -180,12 +184,138 @@ price:5USD/30d;expire:2026-06-01;白嫖中
 - [ ] `flagcdn.com` 国旗 CDN 的可达性；不可达时国旗标记会自动隐藏（不报错），弧线和计数器不受影响。
 - [ ] 汇率 API（exchangerate-api.com）的可达性；失败时自动用 `CONFIG.finance.defaultRates` 默认汇率，并在小部件底部注明。
 
+## NezhaBeautify v2
+
+<a id="nezhaBeautify-v2"></a>
+
+`NezhaBeautify-v2.html`（单文件自定义代码）与 `NezhaBeautify-v2.js`
+（script 引用版，由 `build-js-v2.py` 从 v2 HTML 生成）适配
+**Nezha v2.6.2**，官方用户前端 **nezha-dash-v2 2.7.0 @ 1dd038b**。
+v1 版文件（`NezhaBeautify.html` / `NezhaBeautify.js`）不动，仍只适配 v1.14.x。
+v2 文件由 `make-v2.py` 从 v1 文件转换生成，5 个功能全部保留。
+
+### 安装（Nezha v2）
+
+#### 方式一：script 引用（推荐，一行搞定）
+
+> ⚠️ **还没推上 GitHub**：`NezhaBeautify-v2.js` 目前只在本地，
+> 下面的链接是占位写法，推上去之后才能用。推的时候把 `NezhaBeautify-v2.html`、
+> `NezhaBeautify-v2.js`、`build-js-v2.py`、`make-v2.py` 和更新后的 `README.md`
+> 一起推到 `gugetang/NezhaBeautify-v1` 的 `main` 分支，链接就生效了
+> （jsdelivr 对 `@main` 有最长约 12 小时缓存，刚推完可能不立刻生效，
+> 可用固定提交号引用或 purge 链接清缓存，见 v1 安装节）。
+
+在 Nezha v2 后台（`/dashboard/`）→ **设置** → **自定义代码**
+（`custom_code`）里粘贴这一行（加在现有内容后面，不要删掉已有的行），保存：
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/gugetang/NezhaBeautify-v1@main/NezhaBeautify-v2.js"></script>
+```
+
+改配置时，在这行前面再加一行：
+
+```html
+<script>window.NezhaBeautifyConfig = { finance: { prices: {} } };</script>
+<script src="https://cdn.jsdelivr.net/gh/gugetang/NezhaBeautify-v1@main/NezhaBeautify-v2.js"></script>
+```
+
+#### 方式二：直接粘贴 HTML
+
+把 `NezhaBeautify-v2.html` 的**全部内容**粘贴进同一位置（`custom_code`），保存。
+与 v1 版一样，价格表填在文件顶部 `CONFIG.finance.prices`（见上文“资产统计的价格从哪来”）。
+
+### v1 → v2 映射表
+
+| v1 版 | v2 版 | 依据 / 备注 |
+|---|---|---|
+| 适配 nezhahq/nezha v1.14.14 | 适配 nezhahq/nezha **v2.6.2**，前端 nezha-dash-v2 **2.7.0 @ 1dd038b** | 后台/页脚显示 2.6.2；`service/singleton/frontend-templates.yaml` 与 dash `package.json` |
+| `GET /api/v1/profile`：游客 401 | 游客返回 **HTTP 200 + `{"error":"ApiErrorUnauthorized"}`**，必须看 `json.success` | v2.6.2 `cmd/dashboard/controller/user.go:24-28`；2026-11-20 在 status.alicloud.ru 上实测 |
+| `GET /api/v1/server`：游客 401 | 游客同样返回 HTTP 200 + 错误体；代码按 `json.success` 判断 | v2.6.2 `cmd/dashboard/controller/controller.go:151`（auth 组） |
+| `GET /api/v1/setting` 公开 | 相同，但**不含 version 字段**，版本号只能看后台/页脚 | v2.6.2 `controller.go:97`（fallbackAuth）；`model/config.go:40-41` |
+| `WS /api/v1/ws/server` 每 2 秒 | 相同（`optionalAuth`，ForceAuth 时才强制登录） | v2.6.2 `controller.go:109`；`cmd/dashboard/controller/ws.go:109`（serverStream，2 秒间隔 ws.go:154,170）；`model/server_api.go:5-21` |
+| Server 模型无价格字段 | 相同（`model/server.go:21-40`，无 price/billing/expire/tags/weight/currency） | 资产统计仍用 `CONFIG.finance.prices` 价格表 + `public_note` 解析 |
+| 主题变量 HSL 三元组 + `vite-ui-theme` | 相同（Tailwind v4，`src/index.css` `:root` / `.dark`，`@tailwindcss/postcss ^4.3.2`） | 变量名与 v1 相同，v2 文件的 `--nb-*` 映射不用改 |
+| 外链 `<script src="//unpkg.com/globe.gl">` | **删掉**，改由 JS 后台动态加载 Globe.GL（unpkg 失败自动换 jsdelivr `globe.gl@2.46.2`，两个都实测 200） | 见下文诊断 (d)：InjectContext 会逐个等待外链加载，失败会清掉整段自定义代码 |
+| 初始化：等 `#root` 就绪后 attach 一次 | **守护者挂载**：节点挂 `document.body`，拍 outerHTML 快照，body 的 MutationObserver + 3 秒轮询持续守护，被移走挪回、被删掉按快照重建并重跑对应功能初始化 | 见下文诊断 (b)；v2 前端里没有旧代码等的那类主题容器 |
+| 各功能初始化顶层依次执行，一个抛错全灭 | 各功能各自 try/catch，互不拖累 | InjectContext 会捕获内联脚本执行期的 window error 并清掉整段代码 |
+| 保护：`GET /api/v1/profile` 判断登录 | 相同接口，但按 `json.success` 判断（见上） | 旧站内联代码用已不存在的接口判断登录，见下文诊断 (e) |
+| 新增 `GET /api/v1/service` 说明 | 本项目不调用它（延迟是 NezhaLatency 项目的事），只在 CONFIG 注释里列出 | v2.6.2 `controller.go:112`；`model/service_api.go:24-33` |
+
+### v2 API 核实记录（来源：nezhahq/nezha v2.6.2 与 hamster1963/nezha-dash-v2 2.7.0 源码）
+
+- 路由表：`cmd/dashboard/controller/controller.go`（`@BasePath /api/v1`）。
+  `GET /api/v1/setting`（fallbackAuth，`:97`）、`GET /api/v1/ws/server`
+  （optionalAuth，`:109`）、`GET /api/v1/service`（`:112`）、
+  `GET /api/v1/service/:id/history`（`:114`）、`GET /api/v1/server/:id/service`
+  （`:115`）、`GET /api/v1/profile`（auth，`:127`）、`GET /api/v1/server`
+  （auth，`:151`）。
+- `GET /api/v1/service/:id/history`：`cmd/dashboard/controller/service.go:165-175`，
+  `?period` 只接受 `1d/7d/30d`（默认 `1d`），访客只能查 `1d`
+  （`tsdb.ParseQueryPeriod`，见 `service.go:166`）。
+- 前端注入：`src/features/runtime-config/inject.ts`（`InjectContext`）——
+  按文档顺序注入，`<style>` 进 head，外链 `<script>` 逐个 `await load`
+  （30 秒超时，失败 `dispose()` 清掉全部已注入节点并抛错），内联
+  `<script>` 进 body（执行期 window error 会被捕获并触发 dispose）；
+  每次调用开头先 `disposeCurrent()` 清掉上一次注入的节点。
+  `src/App.tsx:98-127`：设置加载后调用 `InjectContext(custom_code)`，
+  effect 依赖是 `[customCode, settingsPending]`；设置查询
+  `refetchOnMount: true, refetchOnWindowFocus: true`（`App.tsx:70-76`）。
+  所以 custom_code 字符串一变就重新注入、旧节点被清掉；路由切换不卸载
+  App，不会动 body 下的节点。根节点 `<div id="root">`（`index.html:179`，
+  `src/main.tsx`，`WebSocketProvider url="/api/v1/ws/server"`）。
+- 主题：`src/index.css`（`:root` 约 `:119`、`.dark` 约 `:153`，HSL 三元组；
+  主题键 `vite-ui-theme`）；`src/main.tsx` 引入 `flag-icons`（前端自带国旗，
+  自定义代码仍用 flagcdn，见 v1 说明）。
+
+### 诊断：status.alicloud.ru 上自定义代码“时有时无”（2026-11-20）
+
+**首要原因（已证实）：测试期间 custom_code 本身被人改了。**
+2026-11-20 23:12 匿名 curl `/api/v1/setting`，custom_code 是 **106399 字符**，
+含 NezhaLatency.js 引用和整套欢迎气泡/资产统计/地球内联代码；23:24 两次
+匿名 curl 都是 **1789 字符**，只剩 `window.CustomBackgroundImage` /
+`CustomMobileBackgroundImage` / `CustomLogo` / `CustomDesc` /
+`DisableAnimatedMan` / `FixedTopServerName` / `ForceUseSvgFlag` / `CustomLinks`
+这几行，加上 `TrafficScriptConfig` 和 traffic-progress.js 的 script 标签，
+NezhaLatency.js 和内联代码全没了（本次任务中再次 curl 复核确认仍是 1789 字符）。
+浏览器登录后两次重载（23:16–23:21）看到整套自定义层都没渲染，与这次改动
+的时间窗口吻合——代码被从设置里删了，前台当然什么都不显示。这很可能就是
+站长本人在测试期间改的设置。**结论：先以当前 1789 字符的 custom_code 为准，
+不要再按 106KB 那版来推断问题；v2 版测试前务必先确认后台 custom_code 里
+到底有什么，再决定加哪一行。**
+
+其余假说逐一验证如下（旧 106KB 版内联代码取自 23:12 的 `/api/v1/setting`
+快照，`/tmp/status-setting.json`）：
+
+| # | 假说 | 验证结果 |
+|---|---|---|
+| (0) | 测试期间 custom_code 被改动 | ✅ **证实，首要原因**。106399 → 1789 字符（23:12→23:24，匿名 curl 两次复核）。新版里欢迎气泡/资产/地球/延迟本来就不存在，不是渲染失败 |
+| (a) | 内联代码依赖的旧接口在 v2 上 404，导致初始化中断 | ✅ **证实（对旧 106KB 版）**。`/api/nodes`、`/api/me` 在 v2.6.2 路由表里根本不存在（源码 grep 为空），实测都返回 `{"error":"404 Not Found"}`。旧代码资产统计 `fetch('/api/nodes')` 失败抛错 → `calculate` 从不执行 → 金额一直是 `...`，与实测完全吻合；地球 `fetch('/api/nodes')` 拿到 404 体，`json.status !== 'success'` → 节点列表为空 → 计数 `TOTAL SERVERS 0`，与实测完全吻合。**但这只能解释旧版“有球无数据”，解释不了登录后“整个自定义层消失”**（那是假说 0） |
+| (b) | v2 前端重渲染清掉挂载节点，旧代码只盯 `#root` 或不存在的容器 | ⚠️ **部分证实，是隐患不是主因**。旧代码的 MutationObserver 等的是前端里不存在的主题容器（nezha-dash-v2 源码 grep 为 0），永远等不到、也永远不 disconnect；但 InjectContext 是把 HTML 节点直接挂在 body 下的，React 不动 body 节点，路由切换也不会清掉它们，所以单凭这一项解释不了消失。真正的清除机制是 InjectContext 的 dispose：custom_code 一变就清掉上一次注入的全部节点（见上文注入机制）。v2 版改用守护者挂载（快照 + body 观察 + 3 秒轮询）对冲这一点 |
+| (c) | NezhaLatency.js 与内联代码 / traffic-progress.js 互相干扰或重复注入 | ❌ **无证据，已排除为主要原因**。三者用的 id、全局变量、接口互不重叠：NezhaLatency 用 `nl-*` id 和 `/api/v1/service` + WS；traffic-progress.js（17KB，实测下载）只 fetch `/api/v1/service`、建自己的 div/style、无 WebSocket；内联代码用自己的 id。NezhaLatency 的 script 版有 `nl-fab` 去重保护；重复注入时 InjectContext 的 dispose 只清它自己跟踪的节点，脚本副作用建的节点不受它管。延迟按钮“点了不弹出面板”在旧版上无法复现定位：`openModal` 会立即加 `show` class 再 `loadAll`，失败也会显示提示而不是静默无反应；可能与当时 custom_code 正在被改动有关，列入待验证 |
+| (d) | jsdelivr `@main` 缓存 / Globe.GL / ECharts CDN 加载失败 | ❌ **已排除**。2026-11-20 实测：`NezhaLatency.js` jsdelivr 200（47908 字节）、`NezhaBeautify.js`（v1）200（82760 字节）、`globe.gl` unpkg 跟随 302 后 200（1.88MB，`globe.gl@2.46.2`）、jsdelivr 的 `globe.gl@2.46.2` 200、ECharts jsdelivr 200。NezhaLatency 的 ECharts 加载器本身也有 jsdelivr→unpkg 回退 + 表格降级。**但机制上有真风险**：InjectContext 会逐个等待外链脚本，30 秒超时或失败就清掉全部节点，所以 v2 版删掉了外链 Globe.GL 标签，改由 JS 后台动态加载（unpkg→jsdelivr 回退） |
+| (e) | 登录态下保护逻辑 fetch 失败走 catch 分支的影响 | ✅ **证实（旧版逻辑缺陷）**。旧代码末尾 `fetch('/api/me')`，v2 上 404 → `!response.ok` 抛错 → `.catch` 里直接 `initializeProtection()`。也就是说旧版在 v2 上**无论登录与否都会启动保护**（右键/复制拦截对管理员也生效）。v2 版改用 `/api/v1/profile` + `json.success` 判断，只在访客时启用 |
+
+### 仍需在真实站上验证的清单（v2 版）
+
+- [ ] 后台 custom_code 现状确认：测试前先读 `/api/v1/setting`，确认当前是 1789 字符版（只有背景/Logo/外链 + traffic-progress.js），再加 v2 的 script 行。
+- [ ] 延迟面板在旧版上“点了不弹出”的原因：v2 版不含延迟功能（那是 NezhaLatency 的事），但若复现请看浏览器控制台有无 `Custom code initialization failed` 横幅、以及 `/api/v1/service` 是否正常。
+- [ ] WS 在反代 / 子路径下的表现；`public_note` 价格标记解析（同 v1，未变）。
+- [ ] Globe.GL 纹理 CDN（unpkg three-globe）与 flagcdn 在访客网络下的可达性；地球仪点开后 `Globe.GL` 是否从 unpkg 或 jsdelivr 加载成功。
+- [ ] 守护者挂载：改动 custom_code 后重新注入时，旧节点是否被干净替换、有无重复悬浮球（理论上 InjectContext dispose + v2 的 `welcome-bubble-container` 去重保护会兜底）。
+- [ ] 登录态下保护逻辑：用管理员账号登录后右键应**不**触发警告；游客应触发（3 秒后跳转）。
+
 ## 文件清单
 
 ```
 nezha-beautify-v1/
 ├── README.md              # 本文件
-├── NezhaBeautify.html     # 单文件自定义代码（样式 + 节点 + 脚本），粘贴进 custom_code
+├── NezhaBeautify.html     # v1 单文件自定义代码（样式 + 节点 + 脚本），粘贴进 custom_code
+├── NezhaBeautify.js       # v1 script 引用版（build-js.py 生成）
+├── NezhaBeautify-v2.html  # v2 单文件自定义代码（适配 Nezha 2.6.2，见上文）
+├── NezhaBeautify-v2.js    # v2 script 引用版（build-js-v2.py 生成，未推 GitHub）
+├── build-js.py            # v1：从 NezhaBeautify.html 生成 NezhaBeautify.js
+├── build-js-v2.py         # v2：从 NezhaBeautify-v2.html 生成 NezhaBeautify-v2.js
+├── make-v2.py             # 从 v1 HTML 转换生成 NezhaBeautify-v2.html（v1 文件不动）
 └── images/
     ├── earth-day.jpg      # 地球日间纹理（three-globe 示例图本地副本）
     ├── earth-night.jpg    # 地球夜间纹理（本地副本）
