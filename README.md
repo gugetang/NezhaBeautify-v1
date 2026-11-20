@@ -19,6 +19,30 @@
 
 ## 安装（Nezha v1）
 
+### 方式一：script 引用（推荐，一行搞定）
+
+在 Nezha v1 后台（`/dashboard/`）→ **设置** → **自定义代码**
+（`custom_code`）里只粘贴这一行，保存即可：
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/gugetang/NezhaBeautify-v1@main/NezhaBeautify.js"></script>
+```
+
+`NezhaBeautify.js` 是由 `NezhaBeautify.html` 用 `build-js.py` 生成的
+同款单文件 JS：它自己注入样式和面板节点，后台加载 Globe.GL，
+再执行同样的逻辑，和直接粘贴 HTML 效果一样。改配置时，在这行前面再加一行：
+
+```html
+<script>window.NezhaBeautifyConfig = { finance: { prices: {} } };</script>
+<script src="https://cdn.jsdelivr.net/gh/gugetang/NezhaBeautify-v1@main/NezhaBeautify.js"></script>
+```
+
+注意：jsdelivr 对 `@main` 分支有缓存（最长约 12 小时），刚推上去的新版
+可能不会立刻生效；等缓存过期，或改用固定提交号引用，或用 purge 链接清缓存：
+`https://purge.jsdelivr.net/gh/gugetang/NezhaBeautify-v1@main/NezhaBeautify.js`。
+
+### 方式二：直接粘贴 HTML
+
 1. 登录 Nezha v1 后台（`/dashboard/`）→ **设置** → 找到**自定义代码**（`custom_code`，用户前台用）。
 2. 把 `NezhaBeautify.html` 的**全部内容**复制粘贴进去，保存。
 3. 刷新用户前台首页即可看到欢迎气泡和右上角两个悬浮球。
