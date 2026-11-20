@@ -295,11 +295,103 @@ NezhaLatency.js 和内联代码全没了（本次任务中再次 curl 复核确�
 | (d) | jsdelivr `@main` 缓存 / Globe.GL / ECharts CDN 加载失败 | ❌ **已排除**。2026-11-20 实测：`NezhaLatency.js` jsdelivr 200（47908 字节）、`NezhaBeautify.js`（v1）200（82760 字节）、`globe.gl` unpkg 跟随 302 后 200（1.88MB，`globe.gl@2.46.2`）、jsdelivr 的 `globe.gl@2.46.2` 200、ECharts jsdelivr 200。NezhaLatency 的 ECharts 加载器本身也有 jsdelivr→unpkg 回退 + 表格降级。**但机制上有真风险**：InjectContext 会逐个等待外链脚本，30 秒超时或失败就清掉全部节点，所以 v2 版删掉了外链 Globe.GL 标签，改由 JS 后台动态加载（unpkg→jsdelivr 回退） |
 | (e) | 登录态下保护逻辑 fetch 失败走 catch 分支的影响 | ✅ **证实（旧版逻辑缺陷）**。旧代码末尾 `fetch('/api/me')`，v2 上 404 → `!response.ok` 抛错 → `.catch` 里直接 `initializeProtection()`。也就是说旧版在 v2 上**无论登录与否都会启动保护**（右键/复制拦截对管理员也生效）。v2 版改用 `/api/v1/profile` + `json.success` 判断，只在访客时启用 |
 
+### 资产统计（v2）：读后端账单数据（2026-11-20）
+
+**结论：后端确实有价格数据，就藏在服务器的 `public_note` 字段里。**
+Nezha v2 Server 模型本身没有价格字段（`model/server.go:27` 只有
+`PublicNote string json:"public_note,omitempty"`），但后台“编辑服务器 →
+公开备注 → 自定义字段 → 账单信息”表单保存后，会把账单信息写成 JSON
+存进 `public_note`，WS 首包（`/api/v1/ws/server`）原样下发，v2 版直接
+解析它，不用手填价格表。
+
+**官方格式（已实测，见下）**：
+
+```json
+{"billingDataMod":{"startDate":"2026-11-15T16:00:00.000Z",
+ "endDate":"2026-12-15T16:00:00.000Z","autoRenewal":"1",
+ "cycle":"Month","amount":"$3.99"},
+ "planDataMod":{"bandwidth":"1Gbps","trafficVol":"1TB/Month",
+ "trafficType":"2","IPv4":"1","IPv6":"0","networkRoute":"CN2GIA,CN2GIA,CMIN2",
+ "extra":"Premium"}}
+```
+
+字段含义（后台表单原样，截图已核对）：`startDate` 开始时间、
+`endDate` 结束时间、`autoRenewal` 自动续费（`"1"`=启用，`"0"`=禁用）、
+`cycle` 周期（`Day`/`Week`/`Month`/`Year`，表单显示 日/周/月/年）、
+`amount` 金额（`"$3.99"`；`"0"`=免费；`"-1"`=按量计费）；
+`endDate` 为 `"0000-00-00T23:59:59+08:00"` 表示不过期。套餐配置
+（`planDataMod`：带宽/流量/IPv4/IPv6/线路/备注）只做展示参考，
+不参与金额计算。
+
+**证据**：(1) 站上前台 bundle `assets/index.CxhV59WK.js`（1,132,210 字节）
+里 `billingInfo.tsx` 的计费组件：`价格：{amount}/{cycle}`、`"0"` 显示绿色
+“免费”、`"-1"` 显示粉色“按量计费”、`0000-00-00` 开头显示“无限期”，
+否则 `剩余：{days} 天` + 剩余百分比条；(2) `assets/utils.DKRb2Zh4.js`
+里的 `parsePublicNote` / `getDaysBetweenDatesWithAutoRenewal`
+（`nezha-dash-v2 src/lib/utils.ts:219+` 源码同款）：周期换算
+月=1、年=12、季=3、半年=6，不续费按 `剩余天数/(结束-开始)` 算百分比，
+续费且未到期按 `剩余天数/(30×月数)`，续费且已到期顺延到下一个周期；
+(3) WS 首包实测（2026-11-20 23:50，`Origin: https://status.alicloud.ru`）：
+22 台服务器**全部**带 `billingDataMod`，周期 月×5、年×14、日×3，
+自动续费 `"1"`×21（仅 1 台缺失），金额含 `$3.99`、`$20.21`、`$5.00`、
+`0`×5（免费，不过期）、`$0.6`×3、`￥10`、`￥14.99`、`$9.90`、`$10.95`、
+`$6.75`、`$23.98/4`、`€3.79`、`$3.59`、`$0.03`；(4) 后台 bundle
+`/dashboard/assets/index-ZxH4_bVK.js` 里的 zod schema：`billingDataMod` /
+`planDataMod` 各字段均为可选字符串，保存时 `JSON.stringify(...)` 写入
+`public_note`，原始文本模式则直接存原串；(5) 用户 2026-11-20 23:57 发的
+后台截图：RakSmart US - SiliconValley，开始 2026/11/16、结束 2026/12/16、
+自动续费启用、周期 月、金额 $3.99，与 WS 首包里该服务器的
+`billingDataMod`（`2026-11-15T16:00:00.000Z` / `2026-12-15T16:00:00.000Z` /
+`"1"` / `"Month"` / `"$3.99"`，UTC 与 +08:00 时区换算一致）完全吻合。
+**管理员工单**：在后台 → 服务器 → 编辑 → 公开备注 → 自定义字段 →
+账单信息里填开始/结束时间、自动续费、周期、金额，保存即可被读到；
+想让某台显示“免费”填金额 `0`，按量计费填 `-1`。
+
+**实现（`NezhaBeautify-v2.html`，函数名）**：
+`parseBillingNote()` 解析 JSON（只要 `billingDataMod`）；
+`parseAmountString()` 解析金额（符号定币种，`$23.98/4` 取 23.98）；
+`cycleToDays()` / `cycleMonthsOf()` / `cycleLabelOf()` 换算周期；
+`officialRemaining()` 与官方 `getDaysBetweenDatesWithAutoRenewal` 完全一致
+的剩余天数/百分比算法；`scrapeCardBilling()` 兜底读卡片 DOM。
+**优先级**：`CONFIG.finance.prices`（最高，可覆盖）> 后端
+`billingDataMod` > 前台卡片 DOM（读已渲染的 `价格：$3.99/Month` /
+`剩余：25 天`，只在 WS 拿不到数据时用）> 旧版文本标记
+`price:100CNY/365d;expire:2027-01-01`（兼容保留）> 无价格（“未配置”）。
+明细行显示原始金额 + 剩余天数（`剩25天` / `无限期` / `已过期X天` /
+`按量计费`）；剩余价值 = 单价 × 剩余天数 / 周期天数（不过期按一个周期计，
+与 >100 年长期规则一致）；按量计费不计入总额。
+**本地验证**：用 WS 首包 22 台真实样本跑解析函数，RakSmart 剩余 25 天
+（与卡片“剩25天”一致）、非续费服务器 201 天/55%、全部 22 台都有后端
+数据、0 台未配置；`node --check` 通过。
+
+### 地球按截图调整（2026-11-20）
+
+用户发了两张目标截图（Komari 参考站风格，TOTAL SERVERS 25）：夜间地球 +
+星空背景、日本/英国/加拿大国旗、蓝色弧线、绿色圆形 You 标记；白天地球 +
+多国国旗、蓝色弧线、同款绿色圆形 You 标记。对照改动（只改 v2 版）：
+
+- **计数器**：`processData()` 原来只计有 `country_code` 的台数，站上实测
+  显示 21 而不是 22；改成计全部服务器 `servers.length`（旗帜仍只给有坐标
+  的国家画）。
+- **国旗更大更清晰**：`calculateFlagSize()` 从 base 24 / min 16 / max 40
+  改为 base 36 / min 24 / max 48（重叠时缩小下限 16→24），
+  `.earth-flag-img` 宽度 24→36px，加 `border-radius: 6px` 和阴影。
+- **You 标记**：原来是 `/favicon.ico` 图片；改成白色圆底 + 3px 绿色
+  `#22c55e` 圆环 + 绿色呼吸光晕（`userPulse` 改绿），圆内放访客所在国家
+  的国旗（flagcdn `w80`，国家代码来自 IP 查询的 `country_code`，
+  ipwho.is / api.ip.sb 已实测返回该字段；加载失败只剩绿环，不编造图片）。
+  拿不到国家代码时用内联绿色定位针 SVG（纯 CSS/SVG，不依赖外部图片）。
+  注意：截图里的绿色中国地图是参考站访客本人的标记样式，本项目用访客
+  实际所在国国旗概括，不凭空编一个中国地图图片 URL。
+- **昼夜/弧线**：昼夜贴图按主题切换已存在（浅色白天贴图、深色夜间贴图 +
+  星空背景），核对无误保留；弧线和光圈颜色固定为 `#3b82f6` 蓝色
+  （原来跟随主题色，深色下可能偏白），虚线动画保留。
+
 ### 仍需在真实站上验证的清单（v2 版）
 
 - [ ] 后台 custom_code 现状确认：测试前先读 `/api/v1/setting`，确认当前是 1789 字符版（只有背景/Logo/外链 + traffic-progress.js），再加 v2 的 script 行。
 - [ ] 延迟面板在旧版上“点了不弹出”的原因：v2 版不含延迟功能（那是 NezhaLatency 的事），但若复现请看浏览器控制台有无 `Custom code initialization failed` 横幅、以及 `/api/v1/service` 是否正常。
-- [ ] WS 在反代 / 子路径下的表现；`public_note` 价格标记解析（同 v1，未变）。
+- [ ] WS 在反代 / 子路径下的表现；资产统计后端解析（见上节 v2 说明）与卡片 DOM 兜底。
 - [ ] Globe.GL 纹理 CDN（unpkg three-globe）与 flagcdn 在访客网络下的可达性；地球仪点开后 `Globe.GL` 是否从 unpkg 或 jsdelivr 加载成功。
 - [ ] 守护者挂载：改动 custom_code 后重新注入时，旧节点是否被干净替换、有无重复悬浮球（理论上 InjectContext dispose + v2 的 `welcome-bubble-container` 去重保护会兜底）。
 - [ ] 登录态下保护逻辑：用管理员账号登录后右键应**不**触发警告；游客应触发（3 秒后跳转）。

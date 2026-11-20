@@ -367,7 +367,7 @@
   height: 36px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 15px var(--nb-accent-solid), 0 0 30px var(--nb-accent-solid);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.55), 0 0 30px rgba(34, 197, 94, 0.35);
   cursor: pointer;
   z-index: 1002;
   animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
@@ -375,7 +375,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 2px solid var(--nb-accent-solid);
+  border: 3px solid #22c55e;
 }
 .earth-user-marker img {
   width: 100%;
@@ -384,18 +384,20 @@
   border-radius: 50%;
 }
 @keyframes userPulse {
-  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: translate(-50%, -50%) scale(1); }
-  50% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1.15); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1); }
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: translate(-50%, -50%) scale(1); }
+  50% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1); }
 }
 .earth-flag-img {
-  width: 24px;
+  width: 36px;
   height: auto;
   display: block;
   cursor: pointer;
   transform: translate(-50%, -50%);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   filter: drop-shadow(0 0 4px var(--nb-accent-solid));
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 #earth-tooltip {
   position: absolute;
@@ -728,17 +730,25 @@ var NezhaBeautifyConfig = Object.assign({
     longTermYears: 100,                // 到期 > 100 年视为长期，按原价计剩余价值
     rateApi: 'https://api.exchangerate-api.com/v4/latest/CNY',
     defaultRates: { CNY: 1, USD: 0.14, HKD: 1.08, EUR: 0.13, GBP: 0.11, JPY: 20.8 },
-    /* 价格表：Nezha v2 没有价格字段，必须在这里按服务器名（或 id）填。
-       格式：'服务器名': { price: 100, currency: 'CNY', cycleDays: 365,
-                          expireAt: '2027-01-01', free: false }
-       - price: -1 表示免费鸡（按 0 计，标记“免费鸡”）
-       - currency: CNY/USD/HKD/EUR/GBP/JPY 或 ￥/$/HK$/€/£
-       - cycleDays: 计费周期天数（30=月付，365=年付）；不填默认 30
-       - expireAt: 到期日 'YYYY-MM-DD'；不填则剩余价值按 0 计
-       - free: true 等同于在公开备注里写“白嫖中”，会被排除开关控制
-       也可以不填这里，改在 Nezha 后台给服务器写公开备注（public_note），
-       格式见 README：price:100CNY/365d;expire:2027-01-01
-       优先级：价格表 > 公开备注解析 > 无价格（显示“未配置”，不计入总额）。 */
+    /* 价格来源（按优先级）：
+       1. 这里的价格表（最高优先级，可覆盖后端数据）：
+          格式：'服务器名': { price: 100, currency: 'CNY', cycleDays: 365,
+                             expireAt: '2027-01-01', free: false }
+          - price: -1 表示免费鸡（按 0 计，标记“免费鸡”）
+          - currency: CNY/USD/HKD/EUR/GBP/JPY 或 ￥/$/HK$/€/£
+          - cycleDays: 计费周期天数（30=月付，365=年付）；不填默认 30
+          - expireAt: 到期日 'YYYY-MM-DD'；不填则剩余价值按 0 计
+          - free: true 等同于在公开备注里写“白嫖中”，会被排除开关控制
+       2. 后端数据（默认来源，不用手填）：后台编辑服务器 → 公开备注 →
+          自定义字段 → 账单信息，保存后写入服务器 public_note 字段：
+          {"billingDataMod":{"startDate":"...","endDate":"...",
+          "autoRenewal":"1","cycle":"Month","amount":"$3.99"},...}
+          金额 "0"=免费，"-1"=按量计费；endDate 为 0000-00-00 表示不过期。
+          剩余天数按官方前端的算法算（自动续费到期后顺延到下一周期）。
+       3. 前台卡片 DOM 兜底：WS 拿不到数据时，读卡片上已渲染的
+          “价格：$3.99/Month”“剩余：25 天”。
+       4. 旧版文本标记（兼容）：公开备注写 price:100CNY/365d;expire:2027-01-01。
+       以上都没有 → 显示“未配置”，不计入总额。 */
     prices: {
       // 示例（删掉或按实改）：
       // 'HK-小鸡': { price: 100, currency: 'CNY', cycleDays: 365, expireAt: '2027-01-01' },
@@ -1107,7 +1117,7 @@ function initializeWelcomeBubble() {
             country: j.country, regionName: j.region, city: j.city,
             isp: j.asn_organization, org: j.organization,
             as: j.asn ? 'AS' + j.asn : null, ip: j.ip,
-            lat: j.latitude, lng: j.longitude
+            lat: j.latitude, lng: j.longitude, cc: j.country_code
           };
         }
       },
@@ -1120,7 +1130,7 @@ function initializeWelcomeBubble() {
             country: j.country, regionName: j.region, city: j.city,
             isp: j.connection.isp, org: j.connection.org,
             as: j.connection.asn, ip: j.ip,
-            lat: j.latitude, lng: j.longitude
+            lat: j.latitude, lng: j.longitude, cc: j.country_code
           };
         }
       },
@@ -1155,7 +1165,7 @@ function initializeWelcomeBubble() {
             if (mapped.lat && mapped.lng) {
               window.currentUserGeo = {
                 lat: parseFloat(mapped.lat), lng: parseFloat(mapped.lng),
-                city: city, country: country
+                city: city, country: country, cc: mapped.cc || ''
               };
             }
             if (mapped.ip) ip = mapped.ip;
@@ -1293,6 +1303,147 @@ function initializeFinanceWidget() {
     return price;
   }
 
+  // ---- 后端账单数据（官方格式）----
+  // 后台编辑服务器 → 公开备注 → 自定义字段 → 账单信息，保存后写入服务器
+  // public_note 字段（JSON 字符串），格式与官方前端完全一致：
+  // {"billingDataMod":{"startDate":"2026-11-15T16:00:00.000Z",
+  //   "endDate":"2026-12-15T16:00:00.000Z","autoRenewal":"1",
+  //   "cycle":"Month","amount":"$3.99"},
+  //  "planDataMod":{"bandwidth":"1Gbps","trafficVol":"1TB/Month",...}}
+  // 字段含义（后台表单原样）：startDate 开始时间、endDate 结束时间、
+  // autoRenewal 自动续费（"1"=启用，"0"=禁用）、cycle 周期（Day/Week/
+  // Month/Year）、amount 金额（"$3.99"；"0"=免费；"-1"=按量计费）。
+  // endDate 为 "0000-00-00T23:59:59+08:00" 表示不过期。
+  // WS 只在首包带 public_note，后续包为空，NB 数据层按 id 合并时已保留
+  // 首包备注（见 mergeServers），所以这里直接读 server.public_note 即可。
+  function parseBillingNote(note) {
+    if (!note) return null;
+    var parsed;
+    try { parsed = JSON.parse(note); } catch (e) { return null; }
+    if (!parsed || typeof parsed !== 'object' || !parsed.billingDataMod) return null;
+    var b = parsed.billingDataMod;
+    return {
+      startDate: b.startDate || '',
+      endDate: b.endDate || '',
+      autoRenewal: (b.autoRenewal === undefined || b.autoRenewal === null) ? '' : String(b.autoRenewal),
+      cycle: b.cycle || '',
+      amount: (b.amount === undefined || b.amount === null) ? '' : String(b.amount)
+    };
+  }
+
+  // 金额字符串 → { value: 数字, currency: 币种代码 }。
+  // 接受 "$3.99"、"￥10"、"€3.79"、"£x"、"HK$20"、"0"、"-1"、"$23.98/4"
+  //（"/4" 这类后缀原样保留在 raw 里展示，数值只取首个数字，按一周期计）。
+  function parseAmountString(amount) {
+    var s = String(amount == null ? '' : amount).trim();
+    if (s === '') return null;
+    if (s === '0') return { value: 0, currency: null, free: true, usageBased: false, raw: s };
+    if (s === '-1') return { value: null, currency: null, free: false, usageBased: true, raw: s };
+    var m = s.match(/^([^\d.,\-]*?)\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    var sym = (m[1] || '').trim();
+    var cur = 'USD';
+    if (sym === '￥') cur = 'CNY';
+    else if (sym === '€') cur = 'EUR';
+    else if (sym === '£') cur = 'GBP';
+    else if (sym === 'HK$') cur = 'HKD';
+    else if (sym === '¥') cur = 'JPY';
+    else if (sym === '$' || sym === '') cur = 'USD';
+    else if (/^[A-Za-z]{3}$/.test(sym)) cur = sym.toUpperCase();
+    return { value: parseFloat(m[2]), currency: cur, free: false, usageBased: false, raw: s };
+  }
+
+  // 周期 → 天数（另加 Day=1 天、Week=7 天；未知周期默认 30 天）。
+  function cycleToDays(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'day' || c === '日' || c === '天' || c === 'daily') return 1;
+    if (c === 'week' || c === '周' || c === 'weekly') return 7;
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return 30;
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return 365;
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return 90;
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return 180;
+    return 30;
+  }
+
+  // 周期 → 月数（官方剩余天数算法用；未知周期按 1 个月算，与官方一致）。
+  function cycleMonthsOf(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return 1;
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return 12;
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return 3;
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return 6;
+    return 1;
+  }
+
+  function cycleLabelOf(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return '月';
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return '年';
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return '季';
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return '半年';
+    if (c === 'day' || c === '日' || c === '天' || c === 'daily') return '天';
+    if (c === 'week' || c === '周' || c === 'weekly') return '周';
+    return cycle || '';
+  }
+
+  // 剩余天数/百分比：与官方前端 getDaysBetweenDatesWithAutoRenewal 完全一致
+  //（nezha-dash-v2 src/lib/utils.ts）。返回 { days, pct, indefinite, valid }。
+  function officialRemaining(b) {
+    var endRaw = b.endDate || '';
+    if (endRaw.indexOf('0000-00-00') === 0) return { days: null, pct: null, indefinite: true, valid: true };
+    var end = new Date(endRaw);
+    if (isNaN(end.getTime())) return { days: null, pct: null, indefinite: false, valid: false };
+    var now = new Date();
+    var months = cycleMonthsOf(b.cycle);
+    var days = Math.round((end.getTime() - now.getTime()) / 86400000);
+    if (String(b.autoRenewal) !== '1') {
+      var totalDays = Math.round((end.getTime() - new Date(b.startDate).getTime()) / 86400000);
+      return { days: days, pct: totalDays > 0 ? Math.min(1, days / totalDays) : 1, indefinite: false, valid: true };
+    }
+    if (now.getTime() < end.getTime()) {
+      return { days: days, pct: Math.min(1, days / (30 * months)), indefinite: false, valid: true };
+    }
+    var next = new Date(end.getTime());
+    var guard = 0;
+    while (next.getTime() <= now.getTime() && guard < 1200) {
+      next.setMonth(next.getMonth() + months);
+      guard++;
+    }
+    var d2 = Math.floor((next.getTime() - now.getTime()) / 86400000) + 1;
+    return { days: d2, pct: Math.min(1, d2 / (30 * months)), indefinite: false, valid: true };
+  }
+
+  // 兜底：WS 拿不到数据时，直接读前台服务器卡片上已渲染的文字。
+  // 卡片里官方组件渲染的是 <p>价格：$3.99/Month</p>、<div>剩余：25 天</div>
+  //（金额 "0" 显示“免费”，"-1" 显示“按量计费”，不过期显示“剩余：无限期”，
+  // 过期显示“已过期：X 天”）。按服务器名找到对应卡片（卡片根节点带
+  // cursor-pointer），只在后端没有价格信息时用。
+  function scrapeCardBilling(server) {
+    try {
+      var name = server.name || '';
+      if (!name || !document.querySelectorAll) return null;
+      var cards = document.querySelectorAll('[class*="cursor-pointer"]');
+      var card = null;
+      for (var i = 0; i < cards.length; i++) {
+        var t = cards[i].textContent || '';
+        if (t.indexOf(name) !== -1) { card = cards[i]; break; }
+      }
+      if (!card) return null;
+      var text = card.textContent || '';
+      var free = text.indexOf('免费') !== -1;
+      var usage = text.indexOf('按量计费') !== -1;
+      var m = text.match(/价格\s*[：:]\s*([^\s\/]+)\/(Month|Year|Day|Week|半年|月|年|季|天|周|日|[A-Za-z]+)/);
+      var r = text.match(/剩余\s*[：:]\s*(无限期|(\d+)\s*天)/);
+      var ex = text.match(/已过期\s*[：:]?\s*(\d+)\s*天/);
+      if (!m && !free && !usage && !r && !ex) return null;
+      var amt = m ? parseAmountString(m[1]) : null;
+      var days = null, indefinite = false;
+      if (r) { if (r[1] === '无限期') indefinite = true; else if (r[2]) days = parseInt(r[2], 10); }
+      if (ex) days = -parseInt(ex[1], 10);
+      return { amount: amt, cycle: m ? m[2] : '', days: days, indefinite: indefinite, free: free, usageBased: usage };
+    } catch (e) { return null; }
+  }
+
   // 解析公开备注里的价格标记：price:100CNY/365d;expire:2027-01-01
   function parsePublicNote(note) {
     if (!note) return null;
@@ -1309,31 +1460,79 @@ function initializeFinanceWidget() {
     };
   }
 
-  // 价格解析：价格表 > 公开备注 > 无价格
+  // 价格解析优先级：CONFIG 价格表（最高，可覆盖）> 后端 public_note 的
+  // billingDataMod（后台表单填的账单信息）> 前台卡片 DOM 兜底 > 旧版
+  // 文本标记 price:100CNY/365d;expire:2027-01-01 > 无价格（显示“未配置”）。
   function resolvePrice(server) {
+    var freeTag = (server.public_note || '').indexOf(F.freeTag) !== -1;
     var entry = (F.prices && (F.prices[server.name] || F.prices[String(server.id)])) || null;
     if (entry) {
       return {
         priceCNY: entry.price === -1 ? 0 : toCNY(parseFloat(entry.price) || 0, entry.currency || 'CNY'),
         isSpecialFree: entry.price === -1,
+        isUsageBased: false,
         isFreeTag: !!entry.free,
         cycleDays: entry.cycleDays || 30,
+        cycleLabel: '',
         expireAt: entry.expireAt || null,
-        hasPrice: true
+        remainingDays: null, remainingPct: null, indefinite: false,
+        rawAmount: '', hasPrice: true, source: 'config'
       };
+    }
+    var b = parseBillingNote(server.public_note || '');
+    if (b) {
+      var amt = parseAmountString(b.amount);
+      var rem = officialRemaining(b);
+      var cycDays = cycleToDays(b.cycle);
+      if (amt && amt.usageBased) {
+        return { priceCNY: 0, isSpecialFree: false, isUsageBased: true, isFreeTag: freeTag,
+          cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+          remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+          rawAmount: b.amount, hasPrice: true, source: 'backend' };
+      }
+      if (amt) {
+        return { priceCNY: amt.free ? 0 : toCNY(amt.value, amt.currency || 'USD'),
+          isSpecialFree: amt.free, isUsageBased: false, isFreeTag: freeTag,
+          cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+          remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+          rawAmount: b.amount, hasPrice: true, source: 'backend' };
+      }
+      // 有 billingDataMod 但金额为空：仍可算剩余天数，价格按未配置
+      return { priceCNY: 0, isSpecialFree: false, isUsageBased: false, isFreeTag: freeTag,
+        cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+        remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+        rawAmount: '', hasPrice: false, source: 'backend-noprice' };
+    }
+    var dom = scrapeCardBilling(server);
+    if (dom && (dom.amount || dom.free || dom.usageBased)) {
+      var dDays = dom.cycle ? cycleToDays(dom.cycle) : 30;
+      if (dom.usageBased) {
+        return { priceCNY: 0, isSpecialFree: false, isUsageBased: true, isFreeTag: freeTag,
+          cycleDays: dDays, cycleLabel: cycleLabelOf(dom.cycle), expireAt: null,
+          remainingDays: dom.days, remainingPct: null, indefinite: dom.indefinite,
+          rawAmount: '', hasPrice: true, source: 'dom' };
+      }
+      return { priceCNY: (dom.amount && dom.amount.free) ? 0 : toCNY(dom.amount ? dom.amount.value : 0, dom.amount ? (dom.amount.currency || 'USD') : 'USD'),
+        isSpecialFree: !!(dom.amount && dom.amount.free) || dom.free, isUsageBased: false, isFreeTag: freeTag,
+        cycleDays: dDays, cycleLabel: cycleLabelOf(dom.cycle), expireAt: null,
+        remainingDays: dom.days, remainingPct: null, indefinite: dom.indefinite,
+        rawAmount: dom.amount ? dom.amount.raw : '', hasPrice: true, source: 'dom' };
     }
     var parsed = parsePublicNote(server.public_note || '');
     if (parsed) {
       return {
         priceCNY: parsed.price === -1 ? 0 : toCNY(parsed.price, parsed.currency),
         isSpecialFree: parsed.price === -1,
+        isUsageBased: false,
         isFreeTag: parsed.free,
         cycleDays: parsed.cycleDays || 30,
+        cycleLabel: '',
         expireAt: parsed.expireAt,
-        hasPrice: true
+        remainingDays: null, remainingPct: null, indefinite: false,
+        rawAmount: '', hasPrice: true, source: 'legacy'
       };
     }
-    return { priceCNY: 0, isSpecialFree: false, isFreeTag: (server.public_note || '').indexOf(F.freeTag) !== -1, cycleDays: 30, expireAt: null, hasPrice: false };
+    return { priceCNY: 0, isSpecialFree: false, isUsageBased: false, isFreeTag: freeTag, cycleDays: 30, cycleLabel: '', expireAt: null, remainingDays: null, remainingPct: null, indefinite: false, rawAmount: '', hasPrice: false, source: 'none' };
   }
 
   async function updateData() {
@@ -1376,7 +1575,16 @@ function initializeFinanceWidget() {
 
       var remainingVal = 0;
       var isLongTerm = false;
-      if (info.expireAt) {
+      if (info.indefinite) {
+        // 不过期：按一个周期计剩余价值（与 >100 年长期规则一致）
+        remainingVal = priceCNY;
+        isLongTerm = true;
+      } else if (info.remainingDays !== null && info.remainingDays !== undefined) {
+        // 后端/卡片已算出剩余天数（官方算法）：剩余价值 = 单价 × 剩余天数 / 周期天数
+        if (info.remainingDays > 0 && info.cycleDays > 0) {
+          remainingVal = priceCNY * (info.remainingDays / info.cycleDays);
+        }
+      } else if (info.expireAt) {
         var exp = new Date(info.expireAt);
         var diffMs = exp - now;
         var diffYears = diffMs / (1000 * 60 * 60 * 24 * 365);
@@ -1406,7 +1614,7 @@ function initializeFinanceWidget() {
         specialCases.push(server.name + ' (' + F.freeTag + ')');
         tooltipText = server.name + ' (' + F.freeTag + ')';
       } else if (!info.hasPrice) {
-        tooltipText = '未配置价格：请在 CONFIG.finance.prices 里填，或在公开备注写 price:金额币种/周期d;expire:到期日';
+        tooltipText = '未配置价格：请在后台编辑服务器 → 公开备注 → 账单信息里填，或在 CONFIG.finance.prices 里填';
       }
 
       if (tooltipText) {
@@ -1415,14 +1623,24 @@ function initializeFinanceWidget() {
           '</div>';
       }
 
+      var remainNote = '';
+      if (info.indefinite) remainNote = '<span class="item-note">无限期</span>';
+      else if (info.remainingDays !== null && info.remainingDays !== undefined) {
+        remainNote = info.remainingDays >= 0
+          ? '<span class="item-note">剩' + info.remainingDays + '天</span>'
+          : '<span class="item-note">已过期' + (-info.remainingDays) + '天</span>';
+      }
+
       var itemDiv = document.createElement('div');
       itemDiv.className = 'finance-list-item';
       itemDiv.innerHTML =
         '<span class="item-name" title="' + (server.name || '') + '">' + (server.name || '') + '</span>' +
         '<div class="item-right">' +
-        (info.hasPrice
-          ? '<span class="item-value">' + sym + ' ' + displayVal.toFixed(2) + '</span>'
-          : '<span class="item-note">未配置</span>') +
+        (info.isUsageBased
+          ? '<span class="item-note">按量计费</span>'
+          : info.hasPrice
+            ? '<span class="item-value">' + sym + ' ' + displayVal.toFixed(2) + '</span>' + remainNote
+            : '<span class="item-note">未配置</span>') +
         helpIcon +
         '</div>';
       detailListEl.appendChild(itemDiv);
@@ -1690,11 +1908,13 @@ function initializeEarth() {
         arcsData.push({ startLat: item.lat, startLng: item.lng, endLat: userLat, endLng: userLng });
       }
     });
-    return { formattedData: formattedData, arcsData: arcsData, totalCount: count };
+    // TOTAL SERVERS 显示服务器总数（截图里的 25 就是总数）：计全部服务器，
+    // 不只计有 country_code 的；没有坐标的服务器不画旗帜，但仍计入总数。
+    return { formattedData: formattedData, arcsData: arcsData, totalCount: servers.length };
   }
 
   function calculateFlagSize(altitude) {
-    var baseSize = 24, minSize = 16, maxSize = 40;
+    var baseSize = 36, minSize = 24, maxSize = 48;
     var zoomFactor = Math.max(0.5, Math.min(2, 3 - altitude));
     return Math.max(minSize, Math.min(maxSize, baseSize * zoomFactor));
   }
@@ -1750,7 +1970,16 @@ function initializeEarth() {
         if (d.type === 'user') {
           var marker = document.createElement('div');
           marker.className = 'earth-user-marker';
-          marker.innerHTML = '<img src="/favicon.ico" alt="You">';
+          // You 标记：截图里是绿色圆形标记。这里用白色圆底 + 绿色圆环，
+          // 圆内放访客所在国家的国旗（flagcdn，已核实存在；加载失败则隐藏
+          // 图片，只剩绿色圆环）；拿不到国家代码时用绿色定位针 SVG（纯内联，
+          // 不依赖任何外部图片）。不再用 /favicon.ico。
+          var userCc = (window.currentUserGeo && window.currentUserGeo.cc) ? String(window.currentUserGeo.cc).toLowerCase() : '';
+          if (userCc) {
+            marker.innerHTML = '<img src="https://flagcdn.com/w80/' + userCc + '.png" alt="You" onerror="this.style.display=\'none\'">';
+          } else {
+            marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+          }
           marker.onclick = function (e) {
             e.stopPropagation();
             hideTooltip();
@@ -1783,7 +2012,7 @@ function initializeEarth() {
             var controls = globeInstance.controls();
             var altitude = controls.getDistance ? controls.getDistance() / 200 : 2;
             var newSize = calculateFlagSize(altitude);
-            if (hasOverlap && altitude < 1.5) newSize = Math.max(16, newSize * 0.7);
+            if (hasOverlap && altitude < 1.5) newSize = Math.max(24, newSize * 0.7);
             img.style.width = newSize + 'px';
           };
           updateFlagSize();
@@ -1842,7 +2071,7 @@ function initializeEarth() {
         return el;
       })
       .ringsData(pointsData.filter(function (item) { return item.type === 'server'; }))
-      .ringColor(function () { return NB.themeColor(); })
+      .ringColor(function () { return '#3b82f6'; })
       .ringMaxRadius(2)
       .ringPropagationSpeed(1)
       .ringRepeatPeriod(1250)
@@ -1851,7 +2080,7 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      .arcColor(function () { return themeColor; })
+      .arcColor(function () { return '#3b82f6'; })
       .arcDashLength(0.5)
       .arcDashGap(1)
       .arcDashAnimateTime(1750)

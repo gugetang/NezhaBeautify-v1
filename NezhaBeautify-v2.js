@@ -10,7 +10,7 @@
   // Note: the v2 guardian inside the main script also re-attaches nodes if
   // InjectContext disposes them, so this guard only stops a second full run.
   if (document.getElementById('welcome-bubble-container')) return;
-  var CSS = "/* ================= 1. Nezha v2 主题变量适配 =================\n   Nezha v2 官方用户前端（nezha-dash-v2）是 Tailwind v4 + shadcn 风格：\n   :root / html.dark 上定义的是 HSL 三元组变量（--background / --foreground /\n   --card / --primary / --muted-foreground / --border / --destructive 等），\n   主题由 html 的 light/dark class + localStorage \"vite-ui-theme\" 控制。\n   这里把它们映射成 --nb-* 变量，并给出去掉 Nezha 环境也能用的回退值。\n   （旧版 Komari 主题的变量在 Nezha 里不存在，已全部替换；v2 的变量名与\n   v1 相同，见 nezha-dash-v2 src/index.css 的 :root / .dark，HSL 三元组。） */\n:root {\n  --nb-bg: hsl(var(--background, 0 0% 98%));\n  --nb-card: hsl(var(--card, 0 0% 100%));\n  --nb-fg: hsl(var(--foreground, 20 14.3% 4.1%));\n  --nb-muted: hsl(var(--muted-foreground, 25 5.3% 44.7%));\n  --nb-border: hsl(var(--border, 20 5.9% 90%));\n  --nb-accent: hsl(var(--primary, 24 9.8% 10%));\n  --nb-accent-fg: hsl(var(--primary-foreground, 60 9.1% 97.8%));\n  --nb-danger: hsl(var(--destructive, 0 84.2% 60.2%));\n  --nb-shadow: rgba(0, 0, 0, 0.14);\n  --nb-accent-solid: #3b82f6; /* 地球弧线/光晕等需要纯色时的回退色 */\n}\n::-webkit-scrollbar { width: 5px !important; height: 5px !important; }\n::-webkit-scrollbar-track { background-color: transparent !important; }\n::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.55) !important; border-radius: 8px !important; }\n::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.85) !important; }\n\n/* Logo/图片样式 */\n.bubble-logo-image {\n  height: 32px;\n  width: 32px;\n  border-radius: 50%;\n}\n/* 气泡/模态框通用容器样式（共享背景、边框、阴影） */\n.welcome-bubble, .custom-alert-modal, .finance-widget {\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  color: var(--nb-fg);\n}\n/* 气泡/模态框通用头部样式 */\n.bubble-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 10px 15px;\n  border-bottom: 1px solid var(--nb-border);\n}\n.bubble-title {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-weight: 700;\n  font-size: 1.1rem;\n  color: var(--nb-accent);\n  margin: 0;\n}\n.bubble-close {\n  background: none;\n  border: none;\n  color: var(--nb-muted);\n  cursor: pointer;\n  font-size: 1.1rem;\n  padding: 0;\n  transition: color 0.3s ease, transform 0.3s ease;\n}\n.bubble-close:hover {\n  color: var(--nb-accent);\n  transform: rotate(90deg);\n}\n.bubble-content { padding: 15px; }\n/* 气泡通用信息行样式 */\n.bubble-info {\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.bubble-info svg { flex-shrink: 0; color: var(--nb-muted); }\n.bubble-info:last-child { margin-bottom: 0; }\n/* 剧透文本样式 */\n.spoiler {\n  background: var(--nb-accent);\n  color: transparent !important;\n  user-select: none;\n  cursor: pointer;\n  border-radius: 4px;\n  padding: 2px 6px;\n  transition: all 0.3s ease;\n}\n.spoiler:hover { opacity: 0.8; }\n/* 帮助图标/工具提示样式 */\n.help-icon {\n  cursor: help;\n  color: var(--nb-muted);\n  display: flex;\n  align-items: center;\n  position: relative;\n}\n.help-icon.show-help { display: flex; }\n.help-icon:hover { color: var(--nb-accent); }\n.help-icon::after {\n  content: attr(data-tooltip);\n  position: absolute;\n  bottom: 100%;\n  right: -5px;\n  width: max-content;\n  max-width: 200px;\n  padding: 8px 12px;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  font-size: 0.75rem;\n  line-height: 1.4;\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1100;\n  opacity: 0;\n  visibility: hidden;\n  transform: translateY(10px) scale(0.95);\n  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  pointer-events: none;\n  white-space: pre-wrap;\n  text-align: left;\n}\n.help-icon.active::after {\n  opacity: 1;\n  visibility: visible;\n  transform: translateY(-5px) scale(1);\n}\n\n/* 欢迎气泡 (Welcome Bubble) */\n.welcome-bubble {\n  position: fixed;\n  left: 5px;\n  bottom: 45px;\n  z-index: 1050;\n  max-width: 320px;\n  border-radius: 16px;\n  transform: translateY(150%);\n  opacity: 0;\n  transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s;\n  pointer-events: none;\n}\n.welcome-bubble.show {\n  transform: translateY(0);\n  opacity: 1;\n  pointer-events: auto;\n}\n\n/* 资产统计 (Finance Widget) */\n.finance-widget {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  z-index: 1040;\n  width: 280px;\n  border-radius: 16px;\n  transition: all 0.3s ease;\n  display: flex;\n  flex-direction: column;\n  opacity: 0;\n  transform: translateY(-20px);\n  pointer-events: none;\n}\n.finance-widget.show {\n  opacity: 1;\n  transform: translateY(0);\n  pointer-events: auto;\n  z-index: 1040;\n}\n/* 悬浮按钮（资产 + 地球共用） */\n.finance-ball {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  width: 45px;\n  height: 45px;\n  border-radius: 50%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1041;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  cursor: pointer;\n  transition: all 0.3s ease;\n  opacity: 0;\n  transform: scale(0);\n  pointer-events: none;\n  color: var(--nb-accent);\n}\n.finance-ball.show {\n  opacity: 1;\n  transform: scale(1);\n  pointer-events: auto;\n}\n.finance-ball:hover {\n  transform: scale(1.1);\n  color: var(--nb-accent);\n}\n.finance-row {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n}\n.finance-row .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-value { font-weight: bold; color: var(--nb-accent); }\n.finance-separator {\n  height: 1px;\n  background-color: var(--nb-border);\n  margin: 10px 0;\n  width: 100%;\n}\n.finance-list {\n  max-height: 200px;\n  overflow-y: auto;\n  padding-right: 5px;\n  margin-bottom: 5px;\n}\n.finance-list-item {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 6px;\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n}\n.finance-list-item .item-name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  max-width: 140px;\n  color: var(--nb-fg);\n}\n.finance-list-item .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-list-item .item-value { font-weight: 500; color: var(--nb-accent); }\n.finance-list-item .item-note { font-size: 0.7rem; color: var(--nb-muted); }\n.finance-tooltip {\n  font-size: 0.7rem;\n  color: var(--nb-muted);\n  margin-top: 2px;\n  text-align: right;\n}\n.finance-controls {\n  display: flex;\n  gap: 8px;\n  margin-top: 5px;\n  padding-top: 10px;\n  border-top: 1px solid var(--nb-border);\n  justify-content: space-between;\n  align-items: center;\n}\n.finance-select {\n  background: transparent;\n  border: 1px solid var(--nb-border);\n  color: var(--nb-fg);\n  border-radius: 4px;\n  font-size: 0.75rem;\n  padding: 2px 4px;\n  outline: none;\n}\n.finance-select option { color: #111; }\n.finance-btn {\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  color: var(--nb-muted);\n  transition: color 0.2s;\n  padding: 2px;\n}\n.finance-btn:hover { color: var(--nb-accent); }\n.finance-btn.active svg { color: var(--nb-accent); fill: var(--nb-accent); fill-opacity: 0.2; }\n\n/* 自定义警告模态框 (Custom Alert Modal) */\n.custom-alert-overlay {\n  position: fixed; top: 0; left: 0; width: 100%; height: 100%;\n  background-color: rgba(0, 0, 0, 0.4);\n  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);\n  z-index: 2000; display: none; align-items: center; justify-content: center;\n  opacity: 0; transition: opacity 0.3s ease;\n}\n.custom-alert-modal {\n  padding: 0; border-radius: 16px; max-width: 350px; width: 90%;\n  transform: scale(0.95); transition: transform 0.3s ease;\n  display: flex; flex-direction: column;\n}\n.alert-reason-text {\n  font-size: 1.2rem;\n  font-weight: bold;\n  margin: 0;\n  color: var(--nb-danger);\n}\n.custom-alert-modal .bubble-content svg { color: var(--nb-danger); }\n\n/* --- 地球渲染组件 (Earth Globe Component) --- */\n#earth-ball { top: 125px; z-index: 1039; }\n#earth-modal-content {\n  width: 80vw;\n  height: 80vh;\n  max-width: 100%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  border-radius: 16px;\n}\n#earth-render-area {\n  width: 100%;\n  height: 100%;\n  flex: 1;\n  cursor: grab;\n  opacity: 0;\n  transition: opacity 0.5s ease;\n  background: transparent;\n  touch-action: none;\n  position: relative;\n  overflow: hidden;\n}\n#earth-render-area.ready { opacity: 1; }\n#earth-render-area:active { cursor: grabbing; }\n.earth-user-marker {\n  width: 36px;\n  height: 36px;\n  border-radius: 50%;\n  background: rgba(255, 255, 255, 0.95);\n  box-shadow: 0 0 15px var(--nb-accent-solid), 0 0 30px var(--nb-accent-solid);\n  cursor: pointer;\n  z-index: 1002;\n  animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  overflow: hidden;\n  border: 2px solid var(--nb-accent-solid);\n}\n.earth-user-marker img {\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  border-radius: 50%;\n}\n@keyframes userPulse {\n  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: translate(-50%, -50%) scale(1); }\n  50% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1.15); }\n  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1); }\n}\n.earth-flag-img {\n  width: 24px;\n  height: auto;\n  display: block;\n  cursor: pointer;\n  transform: translate(-50%, -50%);\n  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n  filter: drop-shadow(0 0 4px var(--nb-accent-solid));\n}\n#earth-tooltip {\n  position: absolute;\n  display: none;\n  padding: 12px 16px;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-accent-solid);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  pointer-events: auto;\n  z-index: 9999;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  max-width: 300px;\n  min-width: 200px;\n}\n.earth-tooltip-header {\n  font-weight: 900;\n  font-size: 1rem;\n  margin-bottom: 8px;\n  color: var(--nb-accent-solid);\n  border-bottom: 1px solid var(--nb-border);\n  padding-bottom: 6px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.earth-tooltip-content { max-height: 200px; overflow-y: auto; padding-right: 4px; }\n.earth-tooltip-content::-webkit-scrollbar { width: 4px; }\n.earth-tooltip-content::-webkit-scrollbar-thumb { background-color: var(--nb-accent-solid); border-radius: 4px; }\n.earth-tooltip-item {\n  font-size: 0.95rem;\n  padding: 4px 0;\n  color: var(--nb-fg);\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.earth-tooltip-item::before {\n  content: '•';\n  color: var(--nb-accent-solid);\n  font-weight: bold;\n  font-size: 1.4em;\n}\n.earth-overlay-counter {\n  position: absolute;\n  top: 20px;\n  left: 20px;\n  z-index: 1001;\n  pointer-events: none;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-border);\n  padding: 12px 20px;\n  border-radius: 12px;\n  display: flex;\n  flex-direction: column;\n  box-shadow: 0 4px 12px var(--nb-shadow);\n}\n.counter-label {\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n  text-transform: uppercase;\n  letter-spacing: 1.5px;\n  margin-bottom: 4px;\n}\n.counter-value {\n  font-size: 2rem;\n  font-weight: 800;\n  color: var(--nb-accent-solid);\n  line-height: 1;\n}\n\n/* 移动设备（小于 576px） */\n@media (max-width: 576px) {\n  .welcome-bubble { max-width: calc(100vw - 30px); left: 15px; bottom: 15px; }\n  .finance-widget { width: calc(100vw - 40px); right: 20px; }\n}\n/* 平板设备（小于 768px）——主要针对地球组件 */\n@media (max-width: 768px) {\n  #earth-modal-content { width: 95vw; height: 75vh; max-width: none; border-radius: 16px; }\n  .earth-overlay-counter { top: 10px; left: 10px; padding: 8px 12px; }\n  .counter-label { font-size: 0.65rem; }\n  .counter-value { font-size: 1.5rem; }\n  .earth-user-marker { width: 28px; height: 28px; }\n}";
+  var CSS = "/* ================= 1. Nezha v2 主题变量适配 =================\n   Nezha v2 官方用户前端（nezha-dash-v2）是 Tailwind v4 + shadcn 风格：\n   :root / html.dark 上定义的是 HSL 三元组变量（--background / --foreground /\n   --card / --primary / --muted-foreground / --border / --destructive 等），\n   主题由 html 的 light/dark class + localStorage \"vite-ui-theme\" 控制。\n   这里把它们映射成 --nb-* 变量，并给出去掉 Nezha 环境也能用的回退值。\n   （旧版 Komari 主题的变量在 Nezha 里不存在，已全部替换；v2 的变量名与\n   v1 相同，见 nezha-dash-v2 src/index.css 的 :root / .dark，HSL 三元组。） */\n:root {\n  --nb-bg: hsl(var(--background, 0 0% 98%));\n  --nb-card: hsl(var(--card, 0 0% 100%));\n  --nb-fg: hsl(var(--foreground, 20 14.3% 4.1%));\n  --nb-muted: hsl(var(--muted-foreground, 25 5.3% 44.7%));\n  --nb-border: hsl(var(--border, 20 5.9% 90%));\n  --nb-accent: hsl(var(--primary, 24 9.8% 10%));\n  --nb-accent-fg: hsl(var(--primary-foreground, 60 9.1% 97.8%));\n  --nb-danger: hsl(var(--destructive, 0 84.2% 60.2%));\n  --nb-shadow: rgba(0, 0, 0, 0.14);\n  --nb-accent-solid: #3b82f6; /* 地球弧线/光晕等需要纯色时的回退色 */\n}\n::-webkit-scrollbar { width: 5px !important; height: 5px !important; }\n::-webkit-scrollbar-track { background-color: transparent !important; }\n::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.55) !important; border-radius: 8px !important; }\n::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.85) !important; }\n\n/* Logo/图片样式 */\n.bubble-logo-image {\n  height: 32px;\n  width: 32px;\n  border-radius: 50%;\n}\n/* 气泡/模态框通用容器样式（共享背景、边框、阴影） */\n.welcome-bubble, .custom-alert-modal, .finance-widget {\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  color: var(--nb-fg);\n}\n/* 气泡/模态框通用头部样式 */\n.bubble-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 10px 15px;\n  border-bottom: 1px solid var(--nb-border);\n}\n.bubble-title {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-weight: 700;\n  font-size: 1.1rem;\n  color: var(--nb-accent);\n  margin: 0;\n}\n.bubble-close {\n  background: none;\n  border: none;\n  color: var(--nb-muted);\n  cursor: pointer;\n  font-size: 1.1rem;\n  padding: 0;\n  transition: color 0.3s ease, transform 0.3s ease;\n}\n.bubble-close:hover {\n  color: var(--nb-accent);\n  transform: rotate(90deg);\n}\n.bubble-content { padding: 15px; }\n/* 气泡通用信息行样式 */\n.bubble-info {\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.bubble-info svg { flex-shrink: 0; color: var(--nb-muted); }\n.bubble-info:last-child { margin-bottom: 0; }\n/* 剧透文本样式 */\n.spoiler {\n  background: var(--nb-accent);\n  color: transparent !important;\n  user-select: none;\n  cursor: pointer;\n  border-radius: 4px;\n  padding: 2px 6px;\n  transition: all 0.3s ease;\n}\n.spoiler:hover { opacity: 0.8; }\n/* 帮助图标/工具提示样式 */\n.help-icon {\n  cursor: help;\n  color: var(--nb-muted);\n  display: flex;\n  align-items: center;\n  position: relative;\n}\n.help-icon.show-help { display: flex; }\n.help-icon:hover { color: var(--nb-accent); }\n.help-icon::after {\n  content: attr(data-tooltip);\n  position: absolute;\n  bottom: 100%;\n  right: -5px;\n  width: max-content;\n  max-width: 200px;\n  padding: 8px 12px;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  font-size: 0.75rem;\n  line-height: 1.4;\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1100;\n  opacity: 0;\n  visibility: hidden;\n  transform: translateY(10px) scale(0.95);\n  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  pointer-events: none;\n  white-space: pre-wrap;\n  text-align: left;\n}\n.help-icon.active::after {\n  opacity: 1;\n  visibility: visible;\n  transform: translateY(-5px) scale(1);\n}\n\n/* 欢迎气泡 (Welcome Bubble) */\n.welcome-bubble {\n  position: fixed;\n  left: 5px;\n  bottom: 45px;\n  z-index: 1050;\n  max-width: 320px;\n  border-radius: 16px;\n  transform: translateY(150%);\n  opacity: 0;\n  transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s;\n  pointer-events: none;\n}\n.welcome-bubble.show {\n  transform: translateY(0);\n  opacity: 1;\n  pointer-events: auto;\n}\n\n/* 资产统计 (Finance Widget) */\n.finance-widget {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  z-index: 1040;\n  width: 280px;\n  border-radius: 16px;\n  transition: all 0.3s ease;\n  display: flex;\n  flex-direction: column;\n  opacity: 0;\n  transform: translateY(-20px);\n  pointer-events: none;\n}\n.finance-widget.show {\n  opacity: 1;\n  transform: translateY(0);\n  pointer-events: auto;\n  z-index: 1040;\n}\n/* 悬浮按钮（资产 + 地球共用） */\n.finance-ball {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  width: 45px;\n  height: 45px;\n  border-radius: 50%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1041;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  cursor: pointer;\n  transition: all 0.3s ease;\n  opacity: 0;\n  transform: scale(0);\n  pointer-events: none;\n  color: var(--nb-accent);\n}\n.finance-ball.show {\n  opacity: 1;\n  transform: scale(1);\n  pointer-events: auto;\n}\n.finance-ball:hover {\n  transform: scale(1.1);\n  color: var(--nb-accent);\n}\n.finance-row {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n}\n.finance-row .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-value { font-weight: bold; color: var(--nb-accent); }\n.finance-separator {\n  height: 1px;\n  background-color: var(--nb-border);\n  margin: 10px 0;\n  width: 100%;\n}\n.finance-list {\n  max-height: 200px;\n  overflow-y: auto;\n  padding-right: 5px;\n  margin-bottom: 5px;\n}\n.finance-list-item {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 6px;\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n}\n.finance-list-item .item-name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  max-width: 140px;\n  color: var(--nb-fg);\n}\n.finance-list-item .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-list-item .item-value { font-weight: 500; color: var(--nb-accent); }\n.finance-list-item .item-note { font-size: 0.7rem; color: var(--nb-muted); }\n.finance-tooltip {\n  font-size: 0.7rem;\n  color: var(--nb-muted);\n  margin-top: 2px;\n  text-align: right;\n}\n.finance-controls {\n  display: flex;\n  gap: 8px;\n  margin-top: 5px;\n  padding-top: 10px;\n  border-top: 1px solid var(--nb-border);\n  justify-content: space-between;\n  align-items: center;\n}\n.finance-select {\n  background: transparent;\n  border: 1px solid var(--nb-border);\n  color: var(--nb-fg);\n  border-radius: 4px;\n  font-size: 0.75rem;\n  padding: 2px 4px;\n  outline: none;\n}\n.finance-select option { color: #111; }\n.finance-btn {\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  color: var(--nb-muted);\n  transition: color 0.2s;\n  padding: 2px;\n}\n.finance-btn:hover { color: var(--nb-accent); }\n.finance-btn.active svg { color: var(--nb-accent); fill: var(--nb-accent); fill-opacity: 0.2; }\n\n/* 自定义警告模态框 (Custom Alert Modal) */\n.custom-alert-overlay {\n  position: fixed; top: 0; left: 0; width: 100%; height: 100%;\n  background-color: rgba(0, 0, 0, 0.4);\n  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);\n  z-index: 2000; display: none; align-items: center; justify-content: center;\n  opacity: 0; transition: opacity 0.3s ease;\n}\n.custom-alert-modal {\n  padding: 0; border-radius: 16px; max-width: 350px; width: 90%;\n  transform: scale(0.95); transition: transform 0.3s ease;\n  display: flex; flex-direction: column;\n}\n.alert-reason-text {\n  font-size: 1.2rem;\n  font-weight: bold;\n  margin: 0;\n  color: var(--nb-danger);\n}\n.custom-alert-modal .bubble-content svg { color: var(--nb-danger); }\n\n/* --- 地球渲染组件 (Earth Globe Component) --- */\n#earth-ball { top: 125px; z-index: 1039; }\n#earth-modal-content {\n  width: 80vw;\n  height: 80vh;\n  max-width: 100%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  border-radius: 16px;\n}\n#earth-render-area {\n  width: 100%;\n  height: 100%;\n  flex: 1;\n  cursor: grab;\n  opacity: 0;\n  transition: opacity 0.5s ease;\n  background: transparent;\n  touch-action: none;\n  position: relative;\n  overflow: hidden;\n}\n#earth-render-area.ready { opacity: 1; }\n#earth-render-area:active { cursor: grabbing; }\n.earth-user-marker {\n  width: 36px;\n  height: 36px;\n  border-radius: 50%;\n  background: rgba(255, 255, 255, 0.95);\n  box-shadow: 0 0 15px rgba(34, 197, 94, 0.55), 0 0 30px rgba(34, 197, 94, 0.35);\n  cursor: pointer;\n  z-index: 1002;\n  animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  overflow: hidden;\n  border: 3px solid #22c55e;\n}\n.earth-user-marker img {\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  border-radius: 50%;\n}\n@keyframes userPulse {\n  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: translate(-50%, -50%) scale(1); }\n  50% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1.15); }\n  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1); }\n}\n.earth-flag-img {\n  width: 36px;\n  height: auto;\n  display: block;\n  cursor: pointer;\n  transform: translate(-50%, -50%);\n  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n  filter: drop-shadow(0 0 4px var(--nb-accent-solid));\n  border-radius: 6px;\n  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);\n}\n#earth-tooltip {\n  position: absolute;\n  display: none;\n  padding: 12px 16px;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-accent-solid);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  pointer-events: auto;\n  z-index: 9999;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  max-width: 300px;\n  min-width: 200px;\n}\n.earth-tooltip-header {\n  font-weight: 900;\n  font-size: 1rem;\n  margin-bottom: 8px;\n  color: var(--nb-accent-solid);\n  border-bottom: 1px solid var(--nb-border);\n  padding-bottom: 6px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.earth-tooltip-content { max-height: 200px; overflow-y: auto; padding-right: 4px; }\n.earth-tooltip-content::-webkit-scrollbar { width: 4px; }\n.earth-tooltip-content::-webkit-scrollbar-thumb { background-color: var(--nb-accent-solid); border-radius: 4px; }\n.earth-tooltip-item {\n  font-size: 0.95rem;\n  padding: 4px 0;\n  color: var(--nb-fg);\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.earth-tooltip-item::before {\n  content: '•';\n  color: var(--nb-accent-solid);\n  font-weight: bold;\n  font-size: 1.4em;\n}\n.earth-overlay-counter {\n  position: absolute;\n  top: 20px;\n  left: 20px;\n  z-index: 1001;\n  pointer-events: none;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-border);\n  padding: 12px 20px;\n  border-radius: 12px;\n  display: flex;\n  flex-direction: column;\n  box-shadow: 0 4px 12px var(--nb-shadow);\n}\n.counter-label {\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n  text-transform: uppercase;\n  letter-spacing: 1.5px;\n  margin-bottom: 4px;\n}\n.counter-value {\n  font-size: 2rem;\n  font-weight: 800;\n  color: var(--nb-accent-solid);\n  line-height: 1;\n}\n\n/* 移动设备（小于 576px） */\n@media (max-width: 576px) {\n  .welcome-bubble { max-width: calc(100vw - 30px); left: 15px; bottom: 15px; }\n  .finance-widget { width: calc(100vw - 40px); right: 20px; }\n}\n/* 平板设备（小于 768px）——主要针对地球组件 */\n@media (max-width: 768px) {\n  #earth-modal-content { width: 95vw; height: 75vh; max-width: none; border-radius: 16px; }\n  .earth-overlay-counter { top: 10px; left: 10px; padding: 8px 12px; }\n  .counter-label { font-size: 0.65rem; }\n  .counter-value { font-size: 1.5rem; }\n  .earth-user-marker { width: 28px; height: 28px; }\n}";
   var HTML = "<!--欢迎气泡 (Welcome Bubble)-->\n<div id=\"welcome-bubble-container\" class=\"welcome-bubble\">\n<div class=\"bubble-header\">\n  <h3 class=\"bubble-title\">\n    <img src=\"/favicon.ico\" class=\"bubble-logo-image\" alt=\"logo\">\n    <span id=\"nb-site-name\">Nezha</span>\n  </h3>\n  <button class=\"bubble-close\" id=\"bubbleClose\" aria-label=\"关闭\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n      <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n    </svg>\n  </button>\n</div>\n<div class=\"bubble-content\">\n  <p class=\"bubble-info\" id=\"location\">欢迎你，朋友！</p>\n  <p class=\"bubble-info\" id=\"os\">\n    <span id=\"os-icon\"></span>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"browser\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\"></path><path d=\"M2 12h20\"></path></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"ip\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"isp\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10\"></path></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"date\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><polyline points=\"12 6 12 12 16 14\"></polyline></svg>\n    <span class=\"data-text\"></span>\n  </p>\n</div>\n</div>\n\n<!--资产统计 (Finance Widget)-->\n<div id=\"finance-widget\" class=\"finance-widget\">\n<div class=\"bubble-header\">\n  <h3 class=\"bubble-title\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\"/><path d=\"M12 18V6\"/></svg>\n    资产统计\n  </h3>\n  <button class=\"bubble-close\" id=\"financeClose\" aria-label=\"关闭\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n      <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n    </svg>\n  </button>\n</div>\n<div class=\"bubble-content\">\n  <div class=\"finance-row\">\n    <span>服务器数量</span>\n    <span class=\"finance-value\" id=\"fin-total-count\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>总价值</span>\n    <span class=\"finance-value\" id=\"fin-total-price\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>月均支出</span>\n    <span class=\"finance-value\" id=\"fin-monthly-price\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>剩余总价值</span>\n    <div class=\"item-right\">\n      <span class=\"finance-value\" id=\"fin-remain-value\">...</span>\n      <div class=\"help-icon\" id=\"fin-remain-help\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\"/><path d=\"M12 17h.01\"/></svg>\n      </div>\n    </div>\n  </div>\n\n  <div class=\"finance-separator\"></div>\n  <div id=\"fin-detail-list\" class=\"finance-list\">\n  </div>\n\n  <div class=\"finance-tooltip\" id=\"fin-ex-rate\">汇率更新中...</div>\n  <div class=\"finance-controls\">\n    <div style=\"display: flex; gap: 8px;\">\n      <select id=\"fin-currency\" class=\"finance-select\">\n        <option value=\"CNY\">CNY (￥)</option>\n        <option value=\"USD\">USD ($)</option>\n        <option value=\"HKD\">HKD (HK$)</option>\n        <option value=\"EUR\">EUR (€)</option>\n        <option value=\"GBP\">GBP (£)</option>\n        <option value=\"JPY\">JPY (¥)</option>\n      </select>\n      <select id=\"fin-sort\" class=\"finance-select\">\n        <option value=\"display_desc\">展示排序（默认）</option>\n        <option value=\"display_asc\">展示排序 倒序</option>\n        <option value=\"price_asc\">价格 正序</option>\n        <option value=\"price_desc\">价格 倒序</option>\n      </select>\n    </div>\n    <div style=\"display:flex; gap:5px;\">\n      <button class=\"finance-btn\" id=\"fin-toggle-free\" title=\"排除白嫖/计入白嫖\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 5c-1.5 0-2.8 0.6-3.8 1.6l-1.2 1.2-1.2-1.2C11.8 5.6 10.5 5 9 5 5.5 5 3 7.6 3 11c0 3.5 3 7.6 9 13 6-5.4 9-9.5 9-13 0-3.4-2.5-6-6-6z\"/></svg>\n      </button>\n      <button class=\"finance-btn\" id=\"fin-refresh\" title=\"刷新数据\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38\"/></svg>\n      </button>\n    </div>\n  </div>\n</div>\n</div>\n<!--资产悬浮球 (Finance Ball)-->\n<div id=\"finance-ball\" class=\"finance-ball\" title=\"资产统计\">\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\"/><path d=\"M12 18V6\"/></svg>\n</div>\n\n<!--地球组件 (Earth Modal Overlay)-->\n<div id=\"earth-modal-overlay\" class=\"custom-alert-overlay\">\n<div id=\"earth-modal-content\" class=\"custom-alert-modal\">\n  <div class=\"earth-overlay-counter\">\n    <span class=\"counter-label\">Total Servers</span>\n    <span class=\"counter-value\" id=\"earth-total-count\">0</span>\n  </div>\n  <div id=\"earth-render-area\"></div>\n  <div id=\"earth-tooltip\"></div>\n</div>\n</div>\n<!--地球悬浮球 (Earth Ball)-->\n<div id=\"earth-ball\" class=\"finance-ball\" title=\"服务器地球\">\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"12\" cy=\"12\" r=\"10\"></circle>\n  <path d=\"M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/>\n</svg>\n</div>\n\n<!--自定义警告 (Custom Alert Overlay)-->\n<div id=\"custom-alert-overlay\" class=\"custom-alert-overlay\">\n<div id=\"custom-alert-modal\" class=\"custom-alert-modal\">\n  <div class=\"bubble-header\">\n    <h3 class=\"bubble-title\">\n      <img src=\"/favicon.ico\" class=\"bubble-logo-image\" alt=\"logo\">\n      警告\n    </h3>\n    <button class=\"bubble-close\" id=\"alert-close-btn\" aria-label=\"关闭\">\n      <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n        <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n      </svg>\n    </button>\n  </div>\n  <div class=\"bubble-content\" style=\"display: flex; flex-direction: column; align-items: center;\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"64\" height=\"64\" fill=\"currentColor\" viewBox=\"0 0 16 16\" style=\"margin-bottom: 1rem;\">\n      <path d=\"M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.89 0 1.438-.99.982-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z\"/>\n    </svg>\n    <div class=\"alert-reason-container\">\n      <p id=\"trigger-reason\" class=\"alert-reason-text\"></p>\n    </div>\n  </div>\n</div>\n</div>";
   function inject() {
     if (!document.getElementById('nezha-beautify-v2-style')) {
@@ -108,17 +108,25 @@ var NezhaBeautifyConfig = Object.assign({
     longTermYears: 100,                // 到期 > 100 年视为长期，按原价计剩余价值
     rateApi: 'https://api.exchangerate-api.com/v4/latest/CNY',
     defaultRates: { CNY: 1, USD: 0.14, HKD: 1.08, EUR: 0.13, GBP: 0.11, JPY: 20.8 },
-    /* 价格表：Nezha v2 没有价格字段，必须在这里按服务器名（或 id）填。
-       格式：'服务器名': { price: 100, currency: 'CNY', cycleDays: 365,
-                          expireAt: '2027-01-01', free: false }
-       - price: -1 表示免费鸡（按 0 计，标记“免费鸡”）
-       - currency: CNY/USD/HKD/EUR/GBP/JPY 或 ￥/$/HK$/€/£
-       - cycleDays: 计费周期天数（30=月付，365=年付）；不填默认 30
-       - expireAt: 到期日 'YYYY-MM-DD'；不填则剩余价值按 0 计
-       - free: true 等同于在公开备注里写“白嫖中”，会被排除开关控制
-       也可以不填这里，改在 Nezha 后台给服务器写公开备注（public_note），
-       格式见 README：price:100CNY/365d;expire:2027-01-01
-       优先级：价格表 > 公开备注解析 > 无价格（显示“未配置”，不计入总额）。 */
+    /* 价格来源（按优先级）：
+       1. 这里的价格表（最高优先级，可覆盖后端数据）：
+          格式：'服务器名': { price: 100, currency: 'CNY', cycleDays: 365,
+                             expireAt: '2027-01-01', free: false }
+          - price: -1 表示免费鸡（按 0 计，标记“免费鸡”）
+          - currency: CNY/USD/HKD/EUR/GBP/JPY 或 ￥/$/HK$/€/£
+          - cycleDays: 计费周期天数（30=月付，365=年付）；不填默认 30
+          - expireAt: 到期日 'YYYY-MM-DD'；不填则剩余价值按 0 计
+          - free: true 等同于在公开备注里写“白嫖中”，会被排除开关控制
+       2. 后端数据（默认来源，不用手填）：后台编辑服务器 → 公开备注 →
+          自定义字段 → 账单信息，保存后写入服务器 public_note 字段：
+          {"billingDataMod":{"startDate":"...","endDate":"...",
+          "autoRenewal":"1","cycle":"Month","amount":"$3.99"},...}
+          金额 "0"=免费，"-1"=按量计费；endDate 为 0000-00-00 表示不过期。
+          剩余天数按官方前端的算法算（自动续费到期后顺延到下一周期）。
+       3. 前台卡片 DOM 兜底：WS 拿不到数据时，读卡片上已渲染的
+          “价格：$3.99/Month”“剩余：25 天”。
+       4. 旧版文本标记（兼容）：公开备注写 price:100CNY/365d;expire:2027-01-01。
+       以上都没有 → 显示“未配置”，不计入总额。 */
     prices: {
       // 示例（删掉或按实改）：
       // 'HK-小鸡': { price: 100, currency: 'CNY', cycleDays: 365, expireAt: '2027-01-01' },
@@ -487,7 +495,7 @@ function initializeWelcomeBubble() {
             country: j.country, regionName: j.region, city: j.city,
             isp: j.asn_organization, org: j.organization,
             as: j.asn ? 'AS' + j.asn : null, ip: j.ip,
-            lat: j.latitude, lng: j.longitude
+            lat: j.latitude, lng: j.longitude, cc: j.country_code
           };
         }
       },
@@ -500,7 +508,7 @@ function initializeWelcomeBubble() {
             country: j.country, regionName: j.region, city: j.city,
             isp: j.connection.isp, org: j.connection.org,
             as: j.connection.asn, ip: j.ip,
-            lat: j.latitude, lng: j.longitude
+            lat: j.latitude, lng: j.longitude, cc: j.country_code
           };
         }
       },
@@ -535,7 +543,7 @@ function initializeWelcomeBubble() {
             if (mapped.lat && mapped.lng) {
               window.currentUserGeo = {
                 lat: parseFloat(mapped.lat), lng: parseFloat(mapped.lng),
-                city: city, country: country
+                city: city, country: country, cc: mapped.cc || ''
               };
             }
             if (mapped.ip) ip = mapped.ip;
@@ -673,6 +681,147 @@ function initializeFinanceWidget() {
     return price;
   }
 
+  // ---- 后端账单数据（官方格式）----
+  // 后台编辑服务器 → 公开备注 → 自定义字段 → 账单信息，保存后写入服务器
+  // public_note 字段（JSON 字符串），格式与官方前端完全一致：
+  // {"billingDataMod":{"startDate":"2026-11-15T16:00:00.000Z",
+  //   "endDate":"2026-12-15T16:00:00.000Z","autoRenewal":"1",
+  //   "cycle":"Month","amount":"$3.99"},
+  //  "planDataMod":{"bandwidth":"1Gbps","trafficVol":"1TB/Month",...}}
+  // 字段含义（后台表单原样）：startDate 开始时间、endDate 结束时间、
+  // autoRenewal 自动续费（"1"=启用，"0"=禁用）、cycle 周期（Day/Week/
+  // Month/Year）、amount 金额（"$3.99"；"0"=免费；"-1"=按量计费）。
+  // endDate 为 "0000-00-00T23:59:59+08:00" 表示不过期。
+  // WS 只在首包带 public_note，后续包为空，NB 数据层按 id 合并时已保留
+  // 首包备注（见 mergeServers），所以这里直接读 server.public_note 即可。
+  function parseBillingNote(note) {
+    if (!note) return null;
+    var parsed;
+    try { parsed = JSON.parse(note); } catch (e) { return null; }
+    if (!parsed || typeof parsed !== 'object' || !parsed.billingDataMod) return null;
+    var b = parsed.billingDataMod;
+    return {
+      startDate: b.startDate || '',
+      endDate: b.endDate || '',
+      autoRenewal: (b.autoRenewal === undefined || b.autoRenewal === null) ? '' : String(b.autoRenewal),
+      cycle: b.cycle || '',
+      amount: (b.amount === undefined || b.amount === null) ? '' : String(b.amount)
+    };
+  }
+
+  // 金额字符串 → { value: 数字, currency: 币种代码 }。
+  // 接受 "$3.99"、"￥10"、"€3.79"、"£x"、"HK$20"、"0"、"-1"、"$23.98/4"
+  //（"/4" 这类后缀原样保留在 raw 里展示，数值只取首个数字，按一周期计）。
+  function parseAmountString(amount) {
+    var s = String(amount == null ? '' : amount).trim();
+    if (s === '') return null;
+    if (s === '0') return { value: 0, currency: null, free: true, usageBased: false, raw: s };
+    if (s === '-1') return { value: null, currency: null, free: false, usageBased: true, raw: s };
+    var m = s.match(/^([^\d.,\-]*?)\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    var sym = (m[1] || '').trim();
+    var cur = 'USD';
+    if (sym === '￥') cur = 'CNY';
+    else if (sym === '€') cur = 'EUR';
+    else if (sym === '£') cur = 'GBP';
+    else if (sym === 'HK$') cur = 'HKD';
+    else if (sym === '¥') cur = 'JPY';
+    else if (sym === '$' || sym === '') cur = 'USD';
+    else if (/^[A-Za-z]{3}$/.test(sym)) cur = sym.toUpperCase();
+    return { value: parseFloat(m[2]), currency: cur, free: false, usageBased: false, raw: s };
+  }
+
+  // 周期 → 天数（另加 Day=1 天、Week=7 天；未知周期默认 30 天）。
+  function cycleToDays(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'day' || c === '日' || c === '天' || c === 'daily') return 1;
+    if (c === 'week' || c === '周' || c === 'weekly') return 7;
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return 30;
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return 365;
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return 90;
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return 180;
+    return 30;
+  }
+
+  // 周期 → 月数（官方剩余天数算法用；未知周期按 1 个月算，与官方一致）。
+  function cycleMonthsOf(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return 1;
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return 12;
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return 3;
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return 6;
+    return 1;
+  }
+
+  function cycleLabelOf(cycle) {
+    var c = String(cycle || '').toLowerCase();
+    if (c === 'month' || c === '月' || c === 'm' || c === 'mo' || c === 'monthly') return '月';
+    if (c === 'year' || c === '年' || c === 'y' || c === 'yr' || c === 'annual') return '年';
+    if (c === '季' || c === 'quarter' || c === 'quarterly' || c === 'q' || c === 'qr') return '季';
+    if (c === '半年' || c === '半' || c === 'half' || c === 'semi-annually' || c === 'h') return '半年';
+    if (c === 'day' || c === '日' || c === '天' || c === 'daily') return '天';
+    if (c === 'week' || c === '周' || c === 'weekly') return '周';
+    return cycle || '';
+  }
+
+  // 剩余天数/百分比：与官方前端 getDaysBetweenDatesWithAutoRenewal 完全一致
+  //（nezha-dash-v2 src/lib/utils.ts）。返回 { days, pct, indefinite, valid }。
+  function officialRemaining(b) {
+    var endRaw = b.endDate || '';
+    if (endRaw.indexOf('0000-00-00') === 0) return { days: null, pct: null, indefinite: true, valid: true };
+    var end = new Date(endRaw);
+    if (isNaN(end.getTime())) return { days: null, pct: null, indefinite: false, valid: false };
+    var now = new Date();
+    var months = cycleMonthsOf(b.cycle);
+    var days = Math.round((end.getTime() - now.getTime()) / 86400000);
+    if (String(b.autoRenewal) !== '1') {
+      var totalDays = Math.round((end.getTime() - new Date(b.startDate).getTime()) / 86400000);
+      return { days: days, pct: totalDays > 0 ? Math.min(1, days / totalDays) : 1, indefinite: false, valid: true };
+    }
+    if (now.getTime() < end.getTime()) {
+      return { days: days, pct: Math.min(1, days / (30 * months)), indefinite: false, valid: true };
+    }
+    var next = new Date(end.getTime());
+    var guard = 0;
+    while (next.getTime() <= now.getTime() && guard < 1200) {
+      next.setMonth(next.getMonth() + months);
+      guard++;
+    }
+    var d2 = Math.floor((next.getTime() - now.getTime()) / 86400000) + 1;
+    return { days: d2, pct: Math.min(1, d2 / (30 * months)), indefinite: false, valid: true };
+  }
+
+  // 兜底：WS 拿不到数据时，直接读前台服务器卡片上已渲染的文字。
+  // 卡片里官方组件渲染的是 <p>价格：$3.99/Month</p>、<div>剩余：25 天</div>
+  //（金额 "0" 显示“免费”，"-1" 显示“按量计费”，不过期显示“剩余：无限期”，
+  // 过期显示“已过期：X 天”）。按服务器名找到对应卡片（卡片根节点带
+  // cursor-pointer），只在后端没有价格信息时用。
+  function scrapeCardBilling(server) {
+    try {
+      var name = server.name || '';
+      if (!name || !document.querySelectorAll) return null;
+      var cards = document.querySelectorAll('[class*="cursor-pointer"]');
+      var card = null;
+      for (var i = 0; i < cards.length; i++) {
+        var t = cards[i].textContent || '';
+        if (t.indexOf(name) !== -1) { card = cards[i]; break; }
+      }
+      if (!card) return null;
+      var text = card.textContent || '';
+      var free = text.indexOf('免费') !== -1;
+      var usage = text.indexOf('按量计费') !== -1;
+      var m = text.match(/价格\s*[：:]\s*([^\s\/]+)\/(Month|Year|Day|Week|半年|月|年|季|天|周|日|[A-Za-z]+)/);
+      var r = text.match(/剩余\s*[：:]\s*(无限期|(\d+)\s*天)/);
+      var ex = text.match(/已过期\s*[：:]?\s*(\d+)\s*天/);
+      if (!m && !free && !usage && !r && !ex) return null;
+      var amt = m ? parseAmountString(m[1]) : null;
+      var days = null, indefinite = false;
+      if (r) { if (r[1] === '无限期') indefinite = true; else if (r[2]) days = parseInt(r[2], 10); }
+      if (ex) days = -parseInt(ex[1], 10);
+      return { amount: amt, cycle: m ? m[2] : '', days: days, indefinite: indefinite, free: free, usageBased: usage };
+    } catch (e) { return null; }
+  }
+
   // 解析公开备注里的价格标记：price:100CNY/365d;expire:2027-01-01
   function parsePublicNote(note) {
     if (!note) return null;
@@ -689,31 +838,79 @@ function initializeFinanceWidget() {
     };
   }
 
-  // 价格解析：价格表 > 公开备注 > 无价格
+  // 价格解析优先级：CONFIG 价格表（最高，可覆盖）> 后端 public_note 的
+  // billingDataMod（后台表单填的账单信息）> 前台卡片 DOM 兜底 > 旧版
+  // 文本标记 price:100CNY/365d;expire:2027-01-01 > 无价格（显示“未配置”）。
   function resolvePrice(server) {
+    var freeTag = (server.public_note || '').indexOf(F.freeTag) !== -1;
     var entry = (F.prices && (F.prices[server.name] || F.prices[String(server.id)])) || null;
     if (entry) {
       return {
         priceCNY: entry.price === -1 ? 0 : toCNY(parseFloat(entry.price) || 0, entry.currency || 'CNY'),
         isSpecialFree: entry.price === -1,
+        isUsageBased: false,
         isFreeTag: !!entry.free,
         cycleDays: entry.cycleDays || 30,
+        cycleLabel: '',
         expireAt: entry.expireAt || null,
-        hasPrice: true
+        remainingDays: null, remainingPct: null, indefinite: false,
+        rawAmount: '', hasPrice: true, source: 'config'
       };
+    }
+    var b = parseBillingNote(server.public_note || '');
+    if (b) {
+      var amt = parseAmountString(b.amount);
+      var rem = officialRemaining(b);
+      var cycDays = cycleToDays(b.cycle);
+      if (amt && amt.usageBased) {
+        return { priceCNY: 0, isSpecialFree: false, isUsageBased: true, isFreeTag: freeTag,
+          cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+          remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+          rawAmount: b.amount, hasPrice: true, source: 'backend' };
+      }
+      if (amt) {
+        return { priceCNY: amt.free ? 0 : toCNY(amt.value, amt.currency || 'USD'),
+          isSpecialFree: amt.free, isUsageBased: false, isFreeTag: freeTag,
+          cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+          remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+          rawAmount: b.amount, hasPrice: true, source: 'backend' };
+      }
+      // 有 billingDataMod 但金额为空：仍可算剩余天数，价格按未配置
+      return { priceCNY: 0, isSpecialFree: false, isUsageBased: false, isFreeTag: freeTag,
+        cycleDays: cycDays, cycleLabel: cycleLabelOf(b.cycle), expireAt: b.endDate || null,
+        remainingDays: rem.days, remainingPct: rem.pct, indefinite: rem.indefinite,
+        rawAmount: '', hasPrice: false, source: 'backend-noprice' };
+    }
+    var dom = scrapeCardBilling(server);
+    if (dom && (dom.amount || dom.free || dom.usageBased)) {
+      var dDays = dom.cycle ? cycleToDays(dom.cycle) : 30;
+      if (dom.usageBased) {
+        return { priceCNY: 0, isSpecialFree: false, isUsageBased: true, isFreeTag: freeTag,
+          cycleDays: dDays, cycleLabel: cycleLabelOf(dom.cycle), expireAt: null,
+          remainingDays: dom.days, remainingPct: null, indefinite: dom.indefinite,
+          rawAmount: '', hasPrice: true, source: 'dom' };
+      }
+      return { priceCNY: (dom.amount && dom.amount.free) ? 0 : toCNY(dom.amount ? dom.amount.value : 0, dom.amount ? (dom.amount.currency || 'USD') : 'USD'),
+        isSpecialFree: !!(dom.amount && dom.amount.free) || dom.free, isUsageBased: false, isFreeTag: freeTag,
+        cycleDays: dDays, cycleLabel: cycleLabelOf(dom.cycle), expireAt: null,
+        remainingDays: dom.days, remainingPct: null, indefinite: dom.indefinite,
+        rawAmount: dom.amount ? dom.amount.raw : '', hasPrice: true, source: 'dom' };
     }
     var parsed = parsePublicNote(server.public_note || '');
     if (parsed) {
       return {
         priceCNY: parsed.price === -1 ? 0 : toCNY(parsed.price, parsed.currency),
         isSpecialFree: parsed.price === -1,
+        isUsageBased: false,
         isFreeTag: parsed.free,
         cycleDays: parsed.cycleDays || 30,
+        cycleLabel: '',
         expireAt: parsed.expireAt,
-        hasPrice: true
+        remainingDays: null, remainingPct: null, indefinite: false,
+        rawAmount: '', hasPrice: true, source: 'legacy'
       };
     }
-    return { priceCNY: 0, isSpecialFree: false, isFreeTag: (server.public_note || '').indexOf(F.freeTag) !== -1, cycleDays: 30, expireAt: null, hasPrice: false };
+    return { priceCNY: 0, isSpecialFree: false, isUsageBased: false, isFreeTag: freeTag, cycleDays: 30, cycleLabel: '', expireAt: null, remainingDays: null, remainingPct: null, indefinite: false, rawAmount: '', hasPrice: false, source: 'none' };
   }
 
   async function updateData() {
@@ -756,7 +953,16 @@ function initializeFinanceWidget() {
 
       var remainingVal = 0;
       var isLongTerm = false;
-      if (info.expireAt) {
+      if (info.indefinite) {
+        // 不过期：按一个周期计剩余价值（与 >100 年长期规则一致）
+        remainingVal = priceCNY;
+        isLongTerm = true;
+      } else if (info.remainingDays !== null && info.remainingDays !== undefined) {
+        // 后端/卡片已算出剩余天数（官方算法）：剩余价值 = 单价 × 剩余天数 / 周期天数
+        if (info.remainingDays > 0 && info.cycleDays > 0) {
+          remainingVal = priceCNY * (info.remainingDays / info.cycleDays);
+        }
+      } else if (info.expireAt) {
         var exp = new Date(info.expireAt);
         var diffMs = exp - now;
         var diffYears = diffMs / (1000 * 60 * 60 * 24 * 365);
@@ -786,7 +992,7 @@ function initializeFinanceWidget() {
         specialCases.push(server.name + ' (' + F.freeTag + ')');
         tooltipText = server.name + ' (' + F.freeTag + ')';
       } else if (!info.hasPrice) {
-        tooltipText = '未配置价格：请在 CONFIG.finance.prices 里填，或在公开备注写 price:金额币种/周期d;expire:到期日';
+        tooltipText = '未配置价格：请在后台编辑服务器 → 公开备注 → 账单信息里填，或在 CONFIG.finance.prices 里填';
       }
 
       if (tooltipText) {
@@ -795,14 +1001,24 @@ function initializeFinanceWidget() {
           '</div>';
       }
 
+      var remainNote = '';
+      if (info.indefinite) remainNote = '<span class="item-note">无限期</span>';
+      else if (info.remainingDays !== null && info.remainingDays !== undefined) {
+        remainNote = info.remainingDays >= 0
+          ? '<span class="item-note">剩' + info.remainingDays + '天</span>'
+          : '<span class="item-note">已过期' + (-info.remainingDays) + '天</span>';
+      }
+
       var itemDiv = document.createElement('div');
       itemDiv.className = 'finance-list-item';
       itemDiv.innerHTML =
         '<span class="item-name" title="' + (server.name || '') + '">' + (server.name || '') + '</span>' +
         '<div class="item-right">' +
-        (info.hasPrice
-          ? '<span class="item-value">' + sym + ' ' + displayVal.toFixed(2) + '</span>'
-          : '<span class="item-note">未配置</span>') +
+        (info.isUsageBased
+          ? '<span class="item-note">按量计费</span>'
+          : info.hasPrice
+            ? '<span class="item-value">' + sym + ' ' + displayVal.toFixed(2) + '</span>' + remainNote
+            : '<span class="item-note">未配置</span>') +
         helpIcon +
         '</div>';
       detailListEl.appendChild(itemDiv);
@@ -1070,11 +1286,13 @@ function initializeEarth() {
         arcsData.push({ startLat: item.lat, startLng: item.lng, endLat: userLat, endLng: userLng });
       }
     });
-    return { formattedData: formattedData, arcsData: arcsData, totalCount: count };
+    // TOTAL SERVERS 显示服务器总数（截图里的 25 就是总数）：计全部服务器，
+    // 不只计有 country_code 的；没有坐标的服务器不画旗帜，但仍计入总数。
+    return { formattedData: formattedData, arcsData: arcsData, totalCount: servers.length };
   }
 
   function calculateFlagSize(altitude) {
-    var baseSize = 24, minSize = 16, maxSize = 40;
+    var baseSize = 36, minSize = 24, maxSize = 48;
     var zoomFactor = Math.max(0.5, Math.min(2, 3 - altitude));
     return Math.max(minSize, Math.min(maxSize, baseSize * zoomFactor));
   }
@@ -1130,7 +1348,16 @@ function initializeEarth() {
         if (d.type === 'user') {
           var marker = document.createElement('div');
           marker.className = 'earth-user-marker';
-          marker.innerHTML = '<img src="/favicon.ico" alt="You">';
+          // You 标记：截图里是绿色圆形标记。这里用白色圆底 + 绿色圆环，
+          // 圆内放访客所在国家的国旗（flagcdn，已核实存在；加载失败则隐藏
+          // 图片，只剩绿色圆环）；拿不到国家代码时用绿色定位针 SVG（纯内联，
+          // 不依赖任何外部图片）。不再用 /favicon.ico。
+          var userCc = (window.currentUserGeo && window.currentUserGeo.cc) ? String(window.currentUserGeo.cc).toLowerCase() : '';
+          if (userCc) {
+            marker.innerHTML = '<img src="https://flagcdn.com/w80/' + userCc + '.png" alt="You" onerror="this.style.display=\'none\'">';
+          } else {
+            marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+          }
           marker.onclick = function (e) {
             e.stopPropagation();
             hideTooltip();
@@ -1163,7 +1390,7 @@ function initializeEarth() {
             var controls = globeInstance.controls();
             var altitude = controls.getDistance ? controls.getDistance() / 200 : 2;
             var newSize = calculateFlagSize(altitude);
-            if (hasOverlap && altitude < 1.5) newSize = Math.max(16, newSize * 0.7);
+            if (hasOverlap && altitude < 1.5) newSize = Math.max(24, newSize * 0.7);
             img.style.width = newSize + 'px';
           };
           updateFlagSize();
@@ -1222,7 +1449,7 @@ function initializeEarth() {
         return el;
       })
       .ringsData(pointsData.filter(function (item) { return item.type === 'server'; }))
-      .ringColor(function () { return NB.themeColor(); })
+      .ringColor(function () { return '#3b82f6'; })
       .ringMaxRadius(2)
       .ringPropagationSpeed(1)
       .ringRepeatPeriod(1250)
@@ -1231,7 +1458,7 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      .arcColor(function () { return themeColor; })
+      .arcColor(function () { return '#3b82f6'; })
       .arcDashLength(0.5)
       .arcDashGap(1)
       .arcDashAnimateTime(1750)
