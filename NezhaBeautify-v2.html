@@ -381,6 +381,25 @@ html.dark .welcome-bubble {
 }
 #earth-render-area.ready { opacity: 1; }
 #earth-render-area:active { cursor: grabbing; }
+/* 地球弹窗关闭按钮（右上角，复用 .bubble-close 的无边框样式） */
+#earth-close-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 1003;
+  background: var(--nb-card); border: 1px solid var(--nb-border); border-radius: 50%;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; line-height: 1; cursor: pointer; color: var(--nb-muted);
+  box-shadow: 0 2px 8px var(--nb-shadow);
+}
+#earth-close-btn:hover { color: var(--nb-accent); transform: rotate(90deg); }
+/* 地球状态条（加载中/错误提示）：放在 renderArea 外面，不受 renderArea
+   opacity:0 影响——旧版把提示写进 renderArea 里，弹窗空白时提示本身也看不见 */
+#earth-status {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 1002; display: none; max-width: 80%; text-align: center;
+  padding: 12px 18px; border-radius: 12px; font-size: 0.95rem; line-height: 1.6;
+  background: var(--nb-card); border: 1px solid var(--nb-border);
+  box-shadow: 0 4px 16px var(--nb-shadow); color: var(--nb-muted);
+  pointer-events: none;
+}
 .earth-user-marker {
   width: 36px;
   height: 36px;
@@ -625,11 +644,13 @@ html.dark .welcome-bubble {
 <!--地球组件 (Earth Modal Overlay)-->
 <div id="earth-modal-overlay" class="custom-alert-overlay">
 <div id="earth-modal-content" class="custom-alert-modal">
+  <button id="earth-close-btn" class="bubble-close" aria-label="关闭地球仪" title="关闭 (Esc)">✕</button>
   <div class="earth-overlay-counter">
     <span class="counter-label">Total Servers</span>
     <span class="counter-value" id="earth-total-count">0</span>
   </div>
   <div id="earth-render-area"></div>
+  <div id="earth-status" style="display:none"></div>
   <div id="earth-tooltip"></div>
 </div>
 </div>
@@ -927,7 +948,9 @@ var NB = (function () {
       if (t === 'dark') return true;
       if (t === 'light') return false;
     } catch (e) {}
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (e) { return false; }
   }
 
   function themeColor() {
@@ -1774,19 +1797,38 @@ function initializeFinanceWidget() {
    但其余功能不受影响。
    ========================================================================== */
 function ensureGlobeLib(cb) {
-  if (typeof Globe !== 'undefined') { if (cb) cb(true); return; }
-  if (window.__nbGlobeLoading) { if (cb) { var t = setInterval(function () { if (typeof Globe !== 'undefined' || !window.__nbGlobeLoading) { clearInterval(t); cb(typeof Globe !== 'undefined'); } }, 300); } return; }
+  if (typeof Globe !== 'undefined') { if (window.__nbEarth) window.__nbEarth.libLoaded = true; if (cb) cb(true); return; }
+  // 后台已在加载时轮询等待，但必须有上限：旧版这里没有超时，script 标签
+  // 连接卡住（无 onload/onerror）时 __nbGlobeLoading 永远为 true，点地球
+  // 球的回调永远等不到，弹窗一直空白。
+  if (window.__nbGlobeLoading) {
+    if (cb) {
+      var polls = 0;
+      var t = setInterval(function () {
+        polls++;
+        if (typeof Globe !== 'undefined' || !window.__nbGlobeLoading || polls >= 100) {
+          clearInterval(t);
+          if (typeof Globe !== 'undefined' && window.__nbEarth) window.__nbEarth.libLoaded = true;
+          cb(typeof Globe !== 'undefined');
+        }
+      }, 300);
+    }
+    return;
+  }
   window.__nbGlobeLoading = true;
   var urls = [NB.cfg.globe.globeLib, NB.cfg.globe.globeLibFallback].filter(Boolean);
   var i = 0;
+  var LIB_LOAD_TIMEOUT_MS = 10000; // 单条链 10 秒无 onload/onerror 就当失败换下一条
   (function next() {
-    if (typeof Globe !== 'undefined') { window.__nbGlobeLoading = false; if (cb) cb(true); return; }
+    if (typeof Globe !== 'undefined') { window.__nbGlobeLoading = false; if (window.__nbEarth) window.__nbEarth.libLoaded = true; if (cb) cb(true); return; }
     if (i >= urls.length) { window.__nbGlobeLoading = false; if (cb) cb(false); return; }
     var s = document.createElement('script');
     s.src = urls[i++];
     s.async = true;
-    s.onload = function () { window.__nbGlobeLoading = false; if (cb) cb(typeof Globe !== 'undefined'); };
-    s.onerror = function () { next(); };
+    var done = false;
+    var timer = setTimeout(function () { if (!done) { done = true; next(); } }, LIB_LOAD_TIMEOUT_MS);
+    s.onload = function () { if (done) return; done = true; clearTimeout(timer); window.__nbGlobeLoading = false; if (window.__nbEarth) window.__nbEarth.libLoaded = (typeof Globe !== 'undefined'); if (cb) cb(typeof Globe !== 'undefined'); };
+    s.onerror = function () { if (done) return; done = true; clearTimeout(timer); next(); };
     document.head.appendChild(s);
   })();
 }
@@ -1814,7 +1856,44 @@ function initializeEarth() {
   var renderArea = document.getElementById('earth-render-area');
   var tooltip = document.getElementById('earth-tooltip');
   var counterValue = document.getElementById('earth-total-count');
+  var closeBtn = document.getElementById('earth-close-btn');
+  var statusEl = document.getElementById('earth-status');
   if (!ball || !overlay || !renderArea) return;
+
+  // 诊断状态：重测时读 window.__nbEarth 就能定位到哪一步，不用猜。
+  // state: idle | loading-lib | loading-data | ready | error
+  window.__nbEarth = window.__nbEarth || { state: 'idle', libLoaded: false, lastError: null, initAttempts: 0 };
+  var earthDiag = window.__nbEarth;
+  // 状态条在 renderArea 外面，不受 renderArea opacity:0 影响；旧版把
+  // “正在加载/加载失败”写进 renderArea 里，弹窗空白时提示本身也看不见。
+  function showEarthStatus(msg, isError) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.display = 'block';
+    statusEl.style.color = isError ? 'var(--nb-danger)' : 'var(--nb-muted)';
+  }
+  function hideEarthStatus() { if (statusEl) statusEl.style.display = 'none'; }
+  // 关闭弹窗：关闭按钮、Esc、点遮罩都走这里。每次初始化都刷新
+  // window.__nbEarthClose，守护者重建节点后 Esc 仍能关最新的弹窗。
+  function closeEarthModal() {
+    hideTooltip();
+    var ov = document.getElementById('earth-modal-overlay');
+    var mc = document.getElementById('earth-modal-content');
+    if (!ov) return;
+    ov.style.opacity = '0';
+    if (mc) mc.style.transform = 'scale(0.95)';
+    setTimeout(function () { ov.style.display = 'none'; }, 300);
+  }
+  window.__nbEarthClose = closeEarthModal;
+  if (closeBtn) closeBtn.addEventListener('click', function (e) { e.stopPropagation(); closeEarthModal(); });
+  if (!window.__nbEarthEscBound) {
+    window.__nbEarthEscBound = true;
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      var ov = document.getElementById('earth-modal-overlay');
+      if (ov && ov.style.display === 'flex' && window.__nbEarthClose) window.__nbEarthClose();
+    });
+  }
 
   var G = NB.cfg.globe;
   var globeInstance = null;
@@ -1985,14 +2064,21 @@ function initializeEarth() {
     if (!isGlobeInitialized) {
       try {
         if (typeof Globe === 'undefined') {
-          renderArea.innerHTML = '<p style="padding:24px;color:var(--nb-muted)">正在加载 Globe.GL，请稍候…</p>';
+          earthDiag.state = 'loading-lib';
+          showEarthStatus('正在加载 Globe.GL，请稍候…', false);
           ensureGlobeLib(function (ok) {
-            if (!ok) { renderArea.innerHTML = '<p style="padding:24px;color:var(--nb-muted)">Globe.GL 未加载成功，请检查网络后重试。</p>'; return; }
+            if (!ok) {
+              earthDiag.state = 'error';
+              earthDiag.lastError = 'globe-lib-load-failed';
+              showEarthStatus('Globe.GL 未加载成功，请检查网络后重试。', true);
+              return;
+            }
             isGlobeInitialized = false; // 重新走下面的初始化分支
             ball.click();
           });
           return;
         }
+        earthDiag.state = 'loading-data';
         var servers = await NB.getServers();
         var processed = processData(servers || []);
         if (counterValue) counterValue.innerText = processed.totalCount;
@@ -2002,8 +2088,27 @@ function initializeEarth() {
         // 建地球（Globe.GL 加载贴图本身是异步的，不会挡住模型出现）；
         // 后台探测（每张 3 秒超时）完成后，若某张主链失败，再把已建地球的
         // 贴图地址换成回退地址。
-        initGlobe(processed.formattedData, processed.arcsData);
+        // 根因修复（2026-11-21 实测）：initGlobe 里链式调用的
+        // .rendererConfig() 在 Globe.GL 2.46.2 实例上根本不存在
+        // （rendererConfig 只是工厂配置项，正确用法是
+        // Globe({ rendererConfig: {...} })），调用它会同步抛
+        // TypeError，链上后面的 globeImageUrl/htmlElementsData/arcs 等
+        // 全没执行，isGlobeInitialized 保持 false、renderArea 也没加
+        // ready（opacity 一直 0），外层 catch 又只 console.error，
+        // 所以弹窗空白、计数 22、3 次点击全灭且看不到任何报错。
+        // 现在 initGlobe 内部用工厂配置，报错也在这里记下来并显示出来。
+        earthDiag.initAttempts++;
+        try {
+          initGlobe(processed.formattedData, processed.arcsData);
+        } catch (err) {
+          earthDiag.state = 'error';
+          earthDiag.lastError = (err && err.message) || String(err);
+          showEarthStatus('地球初始化失败：' + earthDiag.lastError + '（可按 Esc 关闭后重试）', true);
+          return;
+        }
+        hideEarthStatus();
         isGlobeInitialized = true;
+        earthDiag.state = 'ready';
         setTimeout(function () { renderArea.classList.add('ready'); }, 100);
         if (!isResolvingTextures) {
           isResolvingTextures = true;
@@ -2012,8 +2117,16 @@ function initializeEarth() {
             applyResolvedTextures();
           });
         }
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        // 旧版这里只 console.error(e)，弹窗空白且无任何可见提示；
+        // 现在把错误记到 window.__nbEarth 并显示在状态条上。
+        console.error(e);
+        earthDiag.state = 'error';
+        earthDiag.lastError = (e && e.message) || String(e);
+        showEarthStatus('地球加载失败：' + earthDiag.lastError + '（可按 Esc 关闭后重试）', true);
+      }
     } else {
+      hideEarthStatus();
       setTimeout(function () {
         if (globeInstance) {
           globeInstance.width(renderArea.clientWidth);
@@ -2094,17 +2207,33 @@ function initializeEarth() {
     if (globeInstance) globeInstance.controls().autoRotate = true;
   }
 
-  function initGlobe(pointsData, arcsData) {
+  function initGlobe(pointsData, arcsData, retryCount) {
     var config = getBackgroundConfig();
     var lineColor = config.arc;
     var w = renderArea.clientWidth;
     var h = renderArea.clientHeight;
+    // 渲染区还没布局出尺寸时（弹窗刚 display:flex、过渡动画中）不要用
+    // 0×0 建画布：0 尺寸的 WebGL 画布什么也画不出来。等一帧再试，最多 10 次。
+    if ((!w || !h) && (retryCount || 0) < 10) {
+      requestAnimationFrame(function () { initGlobe(pointsData, arcsData, (retryCount || 0) + 1); });
+      return;
+    }
+    if (!w || !h) {
+      w = Math.round(window.innerWidth * 0.8);
+      h = Math.round(window.innerHeight * 0.8);
+    }
     var hasOverlap = checkOverlap(pointsData);
     var isMobile = window.innerWidth <= 768;
     var initialAltitude = isMobile ? 3.0 : 2.0;
-    globeInstance = Globe()(renderArea)
+    // 注意：rendererConfig 不是实例的链式方法！Globe.GL 2.46.2 里它只是
+    // 工厂配置项（stateInit 时消费），实例上调用 .rendererConfig() 会抛
+    // TypeError: rendererConfig is not a function（jsdom 实测确认），
+    // 而旧版代码正是把它写进了链里，导致整个 initGlobe 在这一行抛错、
+    // 后面的贴图/国旗/弧线全没设置、ready 也没加上，弹窗全空白。
+    // 正确用法是工厂参数；默认值本来就是 { antialias: true, alpha: true }，
+    // 这里显式传一次防默认值被改。
+    globeInstance = Globe({ rendererConfig: { antialias: true, alpha: true } })(renderArea)
       .width(w).height(h)
-      .rendererConfig({ antialias: true, alpha: true })
       .onGlobeReady(function () { applyGlobeHiRes(); })
       .backgroundColor(config.bg)
       .backgroundImageUrl(config.bgImage)
@@ -2249,6 +2378,10 @@ function initializeEarth() {
     globeInstance.controls().autoRotate = true;
     globeInstance.controls().autoRotateSpeed = 0.6;
     globeInstance.controls().enableZoom = true;
+    // 弹窗有 0.3s 的 scale 过渡，布局稳定后把画布尺寸再同步两次，
+    // 防止建地球时读到的还是过渡中的尺寸。
+    setTimeout(function () { if (globeInstance) { globeInstance.width(renderArea.clientWidth || w); globeInstance.height(renderArea.clientHeight || h); } }, 300);
+    setTimeout(function () { if (globeInstance) { globeInstance.width(renderArea.clientWidth || w); globeInstance.height(renderArea.clientHeight || h); } }, 1000);
     renderArea.addEventListener('click', function (e) {
       if (e.target === renderArea || e.target.tagName === 'CANVAS') hideTooltip();
     });
@@ -2290,10 +2423,7 @@ function initializeEarth() {
 
   overlay.addEventListener('click', function (e) {
     if (e.target === overlay || e.target === modalContent) {
-      overlay.style.opacity = '0';
-      modalContent.style.transform = 'scale(0.95)';
-      setTimeout(function () { overlay.style.display = 'none'; }, 300);
-      hideTooltip();
+      closeEarthModal();
     }
   });
 
