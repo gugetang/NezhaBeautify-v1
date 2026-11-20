@@ -729,18 +729,29 @@ var NezhaBeautifyConfig = Object.assign({
     // InjectContext 会逐个等待外链加载，失败会清掉整段自定义代码。
     globeLib: '//unpkg.com/globe.gl',
     globeLibFallback: 'https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js',
-    // 地球贴图（最高清，2026-11-21 实测）：
-    // 白天原来用 earth-day.jpg 只有 1600×800，是白天糊的主因；改成
-    // earth-blue-marble.jpg 4096×2048（unpkg 200，1.4MB）。夜贴图
-    // earth-night.jpg 本来就是 4096×2048，保留。8K（8192×4096）找过：
-    // solarsystemscope 的 8k 图被验证码墙挡住、NASA EO 图超时，都不可靠，
-    // 所以 4096 就是当前可靠 CDN 的最高级。
-    // 每张贴图都有 jsdelivr 回退（同文件、实测 200 且字节数与 unpkg 一致）；
-    // 主链加载失败时 resolveGlobeTextures() 会自动换回退地址。
-    cdnDay: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
-    cdnDayFallback: 'https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-blue-marble.jpg',
-    cdnNight: '//unpkg.com/three-globe/example/img/earth-night.jpg',
-    cdnNightFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg',
+    // 地球贴图（2k 级，2026-11-21 实测；上一版 4096 贴图 + 建地球前
+    // 等全部贴图探测完，导致地球加载不出来，见 resolveGlobeTextures）：
+    // 白天：three.js 官方 earth_atmos_2048.jpg，2048×1024（512,606B，
+    // jsdelivr gh 与 raw 均 200 且字节一致）；原 three-globe 的
+    // earth-day.jpg 只有 1600×800，earth-blue-marble.jpg 是 4096×2048
+    // （1.4MB），都已换掉。unpkg 的 three npm 包不带 textures 目录，
+    // earth_atmos_2048.jpg 在 unpkg/jsdelivr npm 上都是 404，别用。
+    // 夜晚：three.js 官方 earth_lights_2048.png，2048×1024（734,910B，
+    // 深蓝底 + 城市灯光，全图实测有亮点；jsdelivr gh 与 raw 均 200 且
+    // 字节一致）；注意文件名是 .png，.jpg 是 404。earth-dark.jpg 虽然
+    // 也是 2048×1024，但实测接近纯黑（均值 11,11,11，几乎无灯光），
+    // 不能做夜图。原 earth-night.jpg 4096×2048（715,000B）已换掉。
+    // 星空：three-globe / three.js 官方来源里只有 night-sky.png
+    // 4096×2048（904,154B）这一张，没有可靠的 2k 星空图（web 搜索只
+    // 找到未验证的 AI 纹理站，无直接图片 URL，不用）；所以星空仍用原图，
+    // 但不再参与建地球前的探测，建好地球后由 Globe.GL 异步加载，不阻塞。
+    // bump：earth-topology.png 本来就是 2048×1024，保留。
+    // 每张贴图都有回退地址（同文件、实测 200 且字节数与主链一致）；
+    // 主链加载失败或 3 秒超时，resolveGlobeTextures() 自动换回退地址。
+    cdnDay: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg',
+    cdnDayFallback: 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/earth_atmos_2048.jpg',
+    cdnNight: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_lights_2048.png',
+    cdnNightFallback: 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/earth_lights_2048.png',
     cdnSky: '//unpkg.com/three-globe/example/img/night-sky.png',
     cdnSkyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png',
     cdnTopology: '//unpkg.com/three-globe/example/img/earth-topology.png',
@@ -1815,28 +1826,49 @@ function initializeEarth() {
   // 与 bumpImageUrl 优先用它，主链失败时自动换 jsdelivr 回退地址）
   var resolvedTex = {};
 
-  // 单张贴图探测：主链能加载就用主链，失败换回退（Image 预加载，不画出来）
+  // 单张贴图探测：主链能加载就用主链，失败换回退（Image 预加载，不画出来）。
+  // 必须加超时：上一版（430a630）这里没有超时，某张图连接卡住时 onload/
+  // onerror 都不触发，resolveGlobeTextures 永远等不到 4 张结果，建地球
+  // 的回调永远不跑，地球仪就是空白弹窗；而且 isResolvingTextures 一直
+  // 为 true，再点地球球也会直接 return，等于永久打不开。
+  var TEX_PROBE_TIMEOUT_MS = 3000;
   function resolveTexture(primary, fallback, cb) {
     if (!primary) { if (cb) cb(fallback || ''); return; }
+    var done = false;
+    function finish(url) { if (done) return; done = true; if (cb) cb(url); }
+    var timer = setTimeout(function () { finish(fallback || primary); }, TEX_PROBE_TIMEOUT_MS);
     var img = new Image();
-    img.onload = function () { if (cb) cb(primary); };
-    img.onerror = function () { if (cb) cb(fallback || primary); };
+    img.onload = function () { clearTimeout(timer); finish(primary); };
+    img.onerror = function () { clearTimeout(timer); finish(fallback || primary); };
     img.src = primary;
   }
-  // 四张贴图并行探测（白天/夜晚/星空/bump），全部有结果后回调
+  // 贴图回退探测（白天/夜晚/bump 三张并行，每张 3 秒超时），只在后台跑，
+  // 绝不能挡住建地球：星空图不参与探测，Globe.GL 加载背景图本身就是异步的。
+  // 探测完把结果写入 resolvedTex，并把已建好的地球实例上正在用的贴图地址
+  // 换成探测结果（主链失败时换回退地址）；主链正常时探测结果就是主链地址。
   function resolveGlobeTextures(cb) {
-    var pending = 4;
+    var pending = 3;
     var out = {};
     function one(key, primary, fallback) {
       resolveTexture(primary, fallback, function (url) {
         out[key] = url;
-        if (--pending === 0) { resolvedTex = out; if (cb) cb(); }
+        if (--pending === 0) { resolvedTex = out; if (cb) cb(out); }
       });
     }
     one('day', G.localDay || G.cdnDay, G.cdnDayFallback);
     one('night', G.localNight || G.cdnNight, G.cdnNightFallback);
-    one('sky', G.localSky || G.cdnSky, G.cdnSkyFallback);
     one('topology', G.cdnTopology, G.cdnTopologyFallback);
+  }
+  // 后台探测完成后，把已建地球的贴图地址换成探测结果（只换确实变了的）
+  function applyResolvedTextures() {
+    if (!globeInstance || !resolvedTex.day) return;
+    try {
+      var cfg = getBackgroundConfig();
+      globeInstance.globeImageUrl(cfg.globeImage);
+      globeInstance.bumpImageUrl(resolvedTex.topology || G.cdnTopology);
+      if (cfg.bgImage) globeInstance.backgroundImageUrl(cfg.bgImage);
+      setTimeout(applyGlobeHiRes, 300);
+    } catch (e) { console.warn('[NezhaBeautify] apply resolved textures failed', e); }
   }
 
   // 最高清渲染（globe.gl 2.46.2 真实 API，见 README/源码核实）：
@@ -1929,7 +1961,9 @@ function initializeEarth() {
     }
     return {
       bg: bg,
-      bgImage: resolvedTex.sky || G.localSky || G.cdnSky,
+      // 星空图不参与回退探测（Globe.GL 加载背景图本身是异步的，不会挡住
+      // 建地球）；主链失败时背景保持深色，不影响地球本体显示。
+      bgImage: G.localSky || G.cdnSky,
       globeImage: resolvedTex.night || G.localNight || G.cdnNight,
       atmosphere: 'rgba(125, 211, 252, 0.35)',
       arc: globeLineColor(), ring: globeRingColor()
@@ -1962,16 +1996,22 @@ function initializeEarth() {
         var servers = await NB.getServers();
         var processed = processData(servers || []);
         if (counterValue) counterValue.innerText = processed.totalCount;
-        // 先探测贴图（主链失败自动换 jsdelivr 回退），再建地球，
-        // 否则 getBackgroundConfig 拿不到回退地址
-        if (isResolvingTextures) return;
-        isResolvingTextures = true;
-        resolveGlobeTextures(function () {
-          isResolvingTextures = false;
-          initGlobe(processed.formattedData, processed.arcsData);
-          isGlobeInitialized = true;
-          setTimeout(function () { renderArea.classList.add('ready'); }, 100);
-        });
+        // 先建地球，再后台探测贴图回退：上一版先等 4 张贴图全部探测完才建
+        // 地球，某张图卡住（无 onload/onerror、无超时）时回调永远不跑，
+        // 地球仪就是空白弹窗，实测重测 3 次都打不开。2k 贴图直接用主链地址
+        // 建地球（Globe.GL 加载贴图本身是异步的，不会挡住模型出现）；
+        // 后台探测（每张 3 秒超时）完成后，若某张主链失败，再把已建地球的
+        // 贴图地址换成回退地址。
+        initGlobe(processed.formattedData, processed.arcsData);
+        isGlobeInitialized = true;
+        setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        if (!isResolvingTextures) {
+          isResolvingTextures = true;
+          resolveGlobeTextures(function () {
+            isResolvingTextures = false;
+            applyResolvedTextures();
+          });
+        }
       } catch (e) { console.error(e); }
     } else {
       setTimeout(function () {

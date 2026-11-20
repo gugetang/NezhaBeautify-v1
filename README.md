@@ -446,6 +446,53 @@ Nezha v2 Server 模型本身没有价格字段（`model/server.go:27` 只有
   `rgba(148,163,184,0.25)`；文字颜色仍用 `--nb-fg` / `--nb-accent`，
   两边都清晰可读。文案、位置、出现/消失逻辑都没动。
 
+### 地球换 2k + 加载不再阻塞（2026-11-21）
+
+只改 v2 版（上一版 430a630 的地球在站上 3 次重测都打不开：点地球球
+后弹窗空白、只有 TOTAL SERVERS 22，等 105 秒以上也不出模型）：
+
+- **贴图全部换成 2k 级（实测尺寸/状态）**：
+
+  | 贴图 | 旧（430a630） | 新 | 实测 |
+  |---|---|---|---|
+  | 白天 | `earth-blue-marble.jpg` 4096×2048，1.4MB | three.js 官方 `earth_atmos_2048.jpg` **2048×1024**，512,606B | jsdelivr gh 与 raw 均 200，字节一致 |
+  | 夜晚 | `earth-night.jpg` 4096×2048，715,000B | three.js 官方 `earth_lights_2048.png` **2048×1024**，734,910B（深蓝底 + 城市灯光，全图实测有亮点；注意文件名是 `.png`，`.jpg` 是 404） | jsdelivr gh 与 raw 均 200，字节一致 |
+  | 星空 | `night-sky.png` 4096×2048，904,154B | 不变（例外，见下） | unpkg 200 |
+  | bump | `earth-topology.png` 2048×1024 | 不变，本来就是 2k | unpkg 200 |
+
+  总阻塞贴图从约 3MB 降到约 1.6MB。找过的备选：`earth-day.jpg`
+  只有 1600×800（可作白天备选，但不如 2048 的 atmos 图）；
+  `earth-dark.jpg` 也是 2048×1024，但实测接近纯黑（均值
+  11,11,11，几乎无灯光），不能做夜图；unpkg/jsdelivr npm 的
+  three 包不带 `textures` 目录，`earth_atmos_2048.jpg` 在那里
+  都是 404，只能走 `cdn.jsdelivr.net/gh/mrdoob/three.js@r160` /
+  `raw.githubusercontent.com`。
+- **星空是唯一的例外**：three-globe 与 three.js 官方来源里只有
+  `night-sky.png` 4096×2048 这一张星空图，没有可靠的 2k 星空图
+  （web 搜索只找到未验证的 AI 纹理站，无直接图片 URL，不用）。
+  所以星空仍用原图，但不再参与建地球前的探测，建好地球后由
+  Globe.GL 异步加载，不阻塞模型出现。
+- **为什么上一版加载不出来（实测证据）**：430a630 的点地球流程是
+  先 `resolveGlobeTextures()` 等 4 张贴图全部 `Image` 预加载完
+  才调 `initGlobe()`，而 `resolveTexture()` 没有超时——某张图
+  连接卡住时 `onload`/`onerror` 都不触发，`pending` 永远到不了 0，
+  建地球的回调永远不跑，弹窗就是空白；而且 `isResolvingTextures`
+  一直为 `true`，再点地球球也会直接 `return`，等于永久打不开。
+  站上重测 3 次空白弹窗与这个死锁完全吻合（之前 1600×800 白天图
+  + 4096 夜图那版没有这个预加载门，地球能正常加载）。
+- **加载逻辑改动**：点地球球先直接用 2k 主链地址调 `initGlobe()`
+  建地球（Globe.GL 加载贴图本身是异步的，不挡模型出现），再后台
+  跑 `resolveGlobeTextures()`（只探白天/夜晚/bump 三张，每张 3 秒
+  超时 `TEX_PROBE_TIMEOUT_MS`，超时即用回退地址），探测完由新增
+  的 `applyResolvedTextures()` 把已建地球的贴图地址换成探测结果
+  （主链正常时就是主链地址）。旧的 `if (isResolvingTextures)
+  return;` 阻塞门已删。
+- **保留不动**：国旗 h60 3:2、`arcStroke` 0.3、夜冰蓝 `#7dd3fc` /
+  日绿 `#22c55e` 弧线、太阳色 `#fbbf24` 光圈、夜间冰蓝大气辉光、
+  TOTAL SERVERS 计数、You 标记、欢迎气泡磨砂玻璃、资产统计、守护者
+  挂载、渲染高清参数（antialias、pixelRatio 上限 2、max
+  anisotropy）。
+
 ### 仍需在真实站上验证的清单（v2 版）
 
 - [ ] 后台 custom_code 现状确认：测试前先读 `/api/v1/setting`，确认当前是 1789 字符版（只有背景/Logo/外链 + traffic-progress.js），再加 v2 的 script 行。
