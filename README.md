@@ -70,7 +70,7 @@ var NezhaBeautifyConfig = {
   globe: {
     cdnDay / cdnNight / cdnSky / cdnTopology: '…',  // 地球纹理 CDN
     localDay / localNight / localSky: '',           // 填自己的图床 URL 可覆盖 CDN
-    flagUrl: code => 'https://flagcdn.com/w40/' + code.toLowerCase() + '.png',
+    flagUrl: code => 'https://flagcdn.com/h60/' + code.toLowerCase() + '.png',
   },
   finance: {
     defaultCurrency: 'CNY',
@@ -129,7 +129,7 @@ price:5USD/30d;expire:2026-06-01;白嫖中
 | `MutationObserver` 监视 `.radix-themes`，节点挂到该容器下 | 监视 `#root`，节点直接挂到 `document.body` | Nezha 前端无 `.radix-themes`；根节点是 `<div id="root">`（React 18） |
 | 样式变量 `--accent-9 / --purcarte-card-color / --gray-a5` 等 | 映射到 Nezha 的 Tailwind/shadcn 变量 `--background / --card / --foreground / --primary / --muted-foreground / --border / --destructive`（HSL 三元组），并自带回退值 | 详见下节 |
 | 主题检测 `localStorage.appearance` | `html.dark` class + `localStorage "vite-ui-theme"`（light/dark/system）+ `prefers-color-scheme` 回退 | |
-| 地球国旗 `/assets/flags/{CODE}.svg`（Komari 自带） | `flagcdn.com/w40/{code}.png`（`CONFIG.globe.flagUrl` 可改），加载失败自动隐藏 | Nezha 前端不提供该路径 |
+| 地球国旗 `/assets/flags/{CODE}.svg`（Komari 自带） | `flagcdn.com/h60/{code}.png`（3:2，`CONFIG.globe.flagUrl` 可改），加载失败自动隐藏 | Nezha 前端不提供该路径 |
 | 地球纹理 unpkg three-globe CDN | 同上 CDN 默认；本项目 `images/` 有本地副本，可自托管覆盖 | 见 `images/SOURCE.unpkg.txt` |
 
 ## Nezha v1 API 核实记录（来源：nezhahq/nezha v1.14.14 源码）
@@ -386,6 +386,65 @@ Nezha v2 Server 模型本身没有价格字段（`model/server.go:27` 只有
 - **昼夜/弧线**：昼夜贴图按主题切换已存在（浅色白天贴图、深色夜间贴图 +
   星空背景），核对无误保留；弧线和光圈颜色固定为 `#3b82f6` 蓝色
   （原来跟随主题色，深色下可能偏白），虚线动画保留。
+
+### 地球按 Komari 夜图再调（2026-11-21）
+
+用户又发了 Komari 夜间地球参考图并指出：黑夜模式样式不如参考图、国旗
+大小不一样。按图再改（只改 v2 版）：
+
+- **国旗 3:2**：源图从 flagcdn `w40`（40×27，约 4:3）换成 `h60`
+  （90×60，实测精确 3:2）；`.earth-flag-img` 固定宽 36px、高 24px，
+  `object-fit: cover`，缩放时高度按宽度 ×2/3 同步（`updateFlagSize`）。
+- **弧线**：夜间冰蓝 `#7dd3fc`、白天绿色 `#22c55e`；线宽
+  `arcStroke` 0.8→0.3；参考图是细实线，虚线改为实线
+ （`arcDashLength` 1、`arcDashGap` 0、不再动画）。
+- **光圈**：夜间冰蓝 `#7dd3fc`、白天太阳色暖黄 `#fbbf24`
+ （`globeRingColor()`）；国旗辉光跟弧线同色（`globeLineColor()`）。
+- **夜间大气辉光**：`getBackgroundConfig()` 深色氛围色改成冰蓝
+  `rgba(125, 211, 252, 0.35)`，与参考图的蓝色辉光一致；白天保持不变。
+- **主题切换**：`updateGlobeTheme()` 现在同步更新弧线/光圈颜色
+  （`arcColor` / `ringColor`），切换昼夜不用重开地球面板。
+
+### 地球最高清 + 欢迎气泡磨砂玻璃（2026-11-21）
+
+只改 v2 版：
+
+- **地球清晰度拉到最高（贴图）**：白天贴图原来是
+  `earth-day.jpg`，实测只有 1600×800（239K），是白天糊的主因；
+  换成 `earth-blue-marble.jpg` **4096×2048**（unpkg 实测 200，
+  1.4MB）。夜贴图 `earth-night.jpg` 本来就是 4096×2048，保留；
+  `earth-topology.png` 2048×1024、`night-sky.png` 4096×2048 也都
+  实测过。8K（8192×4096）找过：solarsystemscope 的 8k 图被验证码墙
+  挡住、NASA EO 图超时，都不可靠，所以 **4096 是当前可靠 CDN 的
+  最高级**。每张贴图都有 jsdelivr 回退（同文件、实测 200 且字节数与
+  unpkg 一致，如白天回退是
+  `cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-blue-marble.jpg`；
+  注意 `@2.46.2` 的 npm 包里没有这张图，曾返回 404，所以回退 pin 在
+  2.31.0），首次点地球球时先用 `Image` 预加载探测，主链失败自动换
+  回退地址（`resolveGlobeTextures()`，结果缓存到 `resolvedTex`）。
+- **地球清晰度拉到最高（渲染）**：按 globe.gl 2.46.2 的真实 API
+  （README + 源码核实）：链上显式设
+  `.rendererConfig({ antialias: true, alpha: true })`；
+  `.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 2))`
+  （默认是 1，高分屏不设会糊，上限 2 兼顾性能）；
+  `globeMaterial().map / .bumpMap` 的 `anisotropy` 取
+  `renderer.capabilities.getMaxAnisotropy()`（库里默认是 1，斜视
+  地球边缘时贴图会糊），`minFilter`/`magFilter` 显式写成线性
+  mipmap（数值常量 1008/1006，因 globe.gl 没把 THREE 暴露成全局
+  变量）。在 `onGlobeReady`、初始化后延时 1.5 秒、换主题后延时
+  0.8 秒都补调一次（`applyGlobeHiRes()`），因为贴图异步加载、换
+  主题重设贴图后 anisotropy 会回到默认 1。球体分段无法再调：
+  three-globe 里写死 `SphereGeometry(r, 75, 75)`，没有公开可调参数，
+  75×75 已是库内最高。
+- **欢迎气泡磨砂玻璃半透明**：只改 `.welcome-bubble` 本身（资产
+  统计/警告弹窗不动）。之前通用规则给的底是 `var(--nb-card)` 不透明
+  色，`backdrop-filter` 再强也透不出背景；现在单独改成半透明底 +
+  `backdrop-filter: blur(18px) saturate(180%)`、半透明边框、柔和阴
+  影：白天 `rgba(255,255,255,0.62)` 底 + `rgba(255,255,255,0.65)`
+  边框；黑夜（`html.dark`）`rgba(15,23,42,0.55)` 底 +
+  `rgba(255,255,255,0.14)` 边框；分隔线改淡
+  `rgba(148,163,184,0.25)`；文字颜色仍用 `--nb-fg` / `--nb-accent`，
+  两边都清晰可读。文案、位置、出现/消失逻辑都没动。
 
 ### 仍需在真实站上验证的清单（v2 版）
 

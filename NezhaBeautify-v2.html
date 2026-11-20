@@ -152,7 +152,13 @@
   transform: translateY(-5px) scale(1);
 }
 
-/* 欢迎气泡 (Welcome Bubble) */
+/* 欢迎气泡 (Welcome Bubble) —— 磨砂玻璃半透明
+   注意：上面通用规则给的气泡底是 var(--nb-card) 不透明色，backdrop-filter
+   再强也透不出背景；所以这里单独把底改成半透明（下面的规则后出现、同
+   样权重，会覆盖通用规则），只改欢迎气泡，不动资产统计/警告弹窗。
+   白天：半透明白底 + 白色半透明边框；黑夜（html.dark）：半透明深蓝底 +
+   细腻的白色半透明边框；两边都用 blur(18px) saturate(180%) + 柔和阴影，
+   文字颜色仍用 --nb-fg / --nb-accent，保证清晰可读。 */
 .welcome-bubble {
   position: fixed;
   left: 5px;
@@ -164,6 +170,20 @@
   opacity: 0;
   transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s;
   pointer-events: none;
+  background-color: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+html.dark .welcome-bubble {
+  background-color: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* 磨砂底上分隔线也改淡，避免一条实色线压住玻璃感 */
+.welcome-bubble .bubble-header {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
 }
 .welcome-bubble.show {
   transform: translateY(0);
@@ -389,7 +409,8 @@
 }
 .earth-flag-img {
   width: 36px;
-  height: auto;
+  height: 24px;
+  object-fit: cover;
   display: block;
   cursor: pointer;
   transform: translate(-50%, -50%);
@@ -708,17 +729,29 @@ var NezhaBeautifyConfig = Object.assign({
     // InjectContext 会逐个等待外链加载，失败会清掉整段自定义代码。
     globeLib: '//unpkg.com/globe.gl',
     globeLibFallback: 'https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js',
-    cdnDay: '//unpkg.com/three-globe/example/img/earth-day.jpg',
+    // 地球贴图（最高清，2026-11-21 实测）：
+    // 白天原来用 earth-day.jpg 只有 1600×800，是白天糊的主因；改成
+    // earth-blue-marble.jpg 4096×2048（unpkg 200，1.4MB）。夜贴图
+    // earth-night.jpg 本来就是 4096×2048，保留。8K（8192×4096）找过：
+    // solarsystemscope 的 8k 图被验证码墙挡住、NASA EO 图超时，都不可靠，
+    // 所以 4096 就是当前可靠 CDN 的最高级。
+    // 每张贴图都有 jsdelivr 回退（同文件、实测 200 且字节数与 unpkg 一致）；
+    // 主链加载失败时 resolveGlobeTextures() 会自动换回退地址。
+    cdnDay: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+    cdnDayFallback: 'https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-blue-marble.jpg',
     cdnNight: '//unpkg.com/three-globe/example/img/earth-night.jpg',
+    cdnNightFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg',
     cdnSky: '//unpkg.com/three-globe/example/img/night-sky.png',
+    cdnSkyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png',
     cdnTopology: '//unpkg.com/three-globe/example/img/earth-topology.png',
+    cdnTopologyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png',
     // 本项目 images/ 里有上述三张图的本地副本；如需用自己的图床，
     // 把下面三项改成你自己的 URL 即可（留空则用 CDN）。
     localDay: '',
     localNight: '',
     localSky: '',
     // 国旗图标：Nezha 前端自带 flag-icons，但自定义代码里最稳的是 flagcdn。
-    flagUrl: function (code) { return 'https://flagcdn.com/w40/' + String(code).toLowerCase() + '.png'; }
+    flagUrl: function (code) { return 'https://flagcdn.com/h60/' + String(code).toLowerCase() + '.png'; }
   },
 
   // ---- 资产统计 ----
@@ -1775,8 +1808,70 @@ function initializeEarth() {
   var G = NB.cfg.globe;
   var globeInstance = null;
   var isGlobeInitialized = false;
+  var isResolvingTextures = false;
   var currentActiveFlag = null;
   var lastAppliedThemeConfig = null;
+  // 贴图回退探测的结果缓存（resolveGlobeTextures 填入；getBackgroundConfig
+  // 与 bumpImageUrl 优先用它，主链失败时自动换 jsdelivr 回退地址）
+  var resolvedTex = {};
+
+  // 单张贴图探测：主链能加载就用主链，失败换回退（Image 预加载，不画出来）
+  function resolveTexture(primary, fallback, cb) {
+    if (!primary) { if (cb) cb(fallback || ''); return; }
+    var img = new Image();
+    img.onload = function () { if (cb) cb(primary); };
+    img.onerror = function () { if (cb) cb(fallback || primary); };
+    img.src = primary;
+  }
+  // 四张贴图并行探测（白天/夜晚/星空/bump），全部有结果后回调
+  function resolveGlobeTextures(cb) {
+    var pending = 4;
+    var out = {};
+    function one(key, primary, fallback) {
+      resolveTexture(primary, fallback, function (url) {
+        out[key] = url;
+        if (--pending === 0) { resolvedTex = out; if (cb) cb(); }
+      });
+    }
+    one('day', G.localDay || G.cdnDay, G.cdnDayFallback);
+    one('night', G.localNight || G.cdnNight, G.cdnNightFallback);
+    one('sky', G.localSky || G.cdnSky, G.cdnSkyFallback);
+    one('topology', G.cdnTopology, G.cdnTopologyFallback);
+  }
+
+  // 最高清渲染（globe.gl 2.46.2 真实 API，见 README/源码核实）：
+  // - rendererConfig 默认已是 { antialias: true, alpha: true }，initGlobe 里
+  //   再显式写一次，防止默认值被改；
+  // - renderer().setPixelRatio(min(devicePixelRatio, 2))：默认是 1，高分屏
+  //   上不设会糊；上限 2，兼顾性能；
+  // - globeMaterial().map / .bumpMap 的 anisotropy 取
+  //   renderer.capabilities.getMaxAnisotropy()（库里默认是 1，斜视地球
+  //   边缘时贴图会糊）；过滤本身 three 默认已是线性 mipmap（minFilter
+  //   LinearMipmapLinearFilter=1008，magFilter LinearFilter=1006），这里
+  //   显式写一遍（THREE 没暴露成全局变量，用数值常量并在注释里注明）。
+  //   注意：three-globe 的球体是写死的 SphereGeometry(r, 75, 75)，没有
+  //   公开可调的分段参数，所以几何细节已是库内最高，无法再调。
+  // 贴图是异步加载的，换主题重设 globeImageUrl 后也会换成默认 anisotropy，
+  // 所以在 onGlobeReady、延时重试、updateGlobeTheme 里都调一次。
+  function applyGlobeHiRes() {
+    if (!globeInstance) return;
+    try {
+      var r = globeInstance.renderer();
+      if (!r) return;
+      r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      var maxAniso = r.capabilities.getMaxAnisotropy();
+      var mat = globeInstance.globeMaterial();
+      if (mat) {
+        [mat.map, mat.bumpMap].forEach(function (tex) {
+          if (!tex) return;
+          tex.anisotropy = maxAniso;
+          tex.minFilter = 1008; // THREE.LinearMipmapLinearFilter
+          tex.magFilter = 1006; // THREE.LinearFilter
+          tex.needsUpdate = true;
+        });
+      }
+    } catch (e) { console.warn('[NezhaBeautify] hi-res apply failed', e); }
+  }
 
   // 国家代码 → 经纬度（与原版 COORD_MAP 一致）
   var COORD_MAP = {
@@ -1816,21 +1911,28 @@ function initializeEarth() {
     'AQ': [-75.2509, -0.0713]
   };
 
+  // 弧线/国旗辉光颜色：夜间冰蓝 #7dd3fc，白天绿色 #22c55e（与 Komari 参考图一致）
+  function globeLineColor() { return NB.isDark() ? '#7dd3fc' : '#22c55e'; }
+  // 光圈颜色：夜间冰蓝，白天太阳色（暖黄 #fbbf24）
+  function globeRingColor() { return NB.isDark() ? '#7dd3fc' : '#fbbf24'; }
+
   function getBackgroundConfig() {
     var isLight = !NB.isDark();
     var bg = 'rgba(0, 0, 0, 0)';
     if (isLight) {
       return {
         bg: bg, bgImage: null,
-        globeImage: G.localDay || G.cdnDay,
-        atmosphere: 'rgba(59, 130, 246, 0.2)'
+        globeImage: resolvedTex.day || G.localDay || G.cdnDay,
+        atmosphere: 'rgba(59, 130, 246, 0.2)',
+        arc: globeLineColor(), ring: globeRingColor()
       };
     }
     return {
       bg: bg,
-      bgImage: G.localSky || G.cdnSky,
-      globeImage: G.localNight || G.cdnNight,
-      atmosphere: NB.themeColor()
+      bgImage: resolvedTex.sky || G.localSky || G.cdnSky,
+      globeImage: resolvedTex.night || G.localNight || G.cdnNight,
+      atmosphere: 'rgba(125, 211, 252, 0.35)',
+      arc: globeLineColor(), ring: globeRingColor()
     };
   }
 
@@ -1860,9 +1962,16 @@ function initializeEarth() {
         var servers = await NB.getServers();
         var processed = processData(servers || []);
         if (counterValue) counterValue.innerText = processed.totalCount;
-        initGlobe(processed.formattedData, processed.arcsData);
-        isGlobeInitialized = true;
-        setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        // 先探测贴图（主链失败自动换 jsdelivr 回退），再建地球，
+        // 否则 getBackgroundConfig 拿不到回退地址
+        if (isResolvingTextures) return;
+        isResolvingTextures = true;
+        resolveGlobeTextures(function () {
+          isResolvingTextures = false;
+          initGlobe(processed.formattedData, processed.arcsData);
+          isGlobeInitialized = true;
+          setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        });
       } catch (e) { console.error(e); }
     } else {
       setTimeout(function () {
@@ -1938,7 +2047,7 @@ function initializeEarth() {
       if (currentActiveFlag.classList.contains('earth-flag-img')) {
         currentActiveFlag.style.transform = 'translate(-50%, -50%) scale(1)';
         currentActiveFlag.style.zIndex = 'auto';
-        currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + NB.themeColor() + ')';
+        currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + globeLineColor() + ')';
       }
       currentActiveFlag = null;
     }
@@ -1947,7 +2056,7 @@ function initializeEarth() {
 
   function initGlobe(pointsData, arcsData) {
     var config = getBackgroundConfig();
-    var themeColor = NB.themeColor();
+    var lineColor = config.arc;
     var w = renderArea.clientWidth;
     var h = renderArea.clientHeight;
     var hasOverlap = checkOverlap(pointsData);
@@ -1955,10 +2064,12 @@ function initializeEarth() {
     var initialAltitude = isMobile ? 3.0 : 2.0;
     globeInstance = Globe()(renderArea)
       .width(w).height(h)
+      .rendererConfig({ antialias: true, alpha: true })
+      .onGlobeReady(function () { applyGlobeHiRes(); })
       .backgroundColor(config.bg)
       .backgroundImageUrl(config.bgImage)
       .globeImageUrl(config.globeImage)
-      .bumpImageUrl(G.cdnTopology)
+      .bumpImageUrl(resolvedTex.topology || G.cdnTopology)
       .atmosphereColor(config.atmosphere)
       .atmosphereAltitude(0.15)
       .htmlElementsData(pointsData)
@@ -2005,6 +2116,7 @@ function initializeEarth() {
           img.alt = d.code;
           img.className = 'earth-flag-img';
           img.style.pointerEvents = 'auto';
+          img.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
           img.onerror = function () { img.style.display = 'none'; };
           var updateFlagSize = function () {
             if (!globeInstance) return;
@@ -2013,19 +2125,21 @@ function initializeEarth() {
             var newSize = calculateFlagSize(altitude);
             if (hasOverlap && altitude < 1.5) newSize = Math.max(24, newSize * 0.7);
             img.style.width = newSize + 'px';
+            // 国旗固定 3:2（参考图比例），高度随宽度走
+            img.style.height = Math.round(newSize * 2 / 3) + 'px';
           };
           updateFlagSize();
           globeInstance.controls().addEventListener('change', updateFlagSize);
           img.onmouseenter = function () {
             if (currentActiveFlag !== img) {
               img.style.transform = 'translate(-50%, -50%) scale(1.3)';
-              img.style.filter = 'drop-shadow(0 0 6px ' + themeColor + ')';
+              img.style.filter = 'drop-shadow(0 0 6px ' + lineColor + ')';
             }
           };
           img.onmouseleave = function () {
             if (currentActiveFlag !== img) {
               img.style.transform = 'translate(-50%, -50%) scale(1)';
-              img.style.filter = 'drop-shadow(0 0 4px ' + themeColor + ')';
+              img.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
             }
           };
           img.onclick = function (e) {
@@ -2034,13 +2148,13 @@ function initializeEarth() {
             if (currentActiveFlag && currentActiveFlag.classList.contains('earth-flag-img')) {
               currentActiveFlag.style.transform = 'translate(-50%, -50%) scale(1)';
               currentActiveFlag.style.zIndex = 'auto';
-              currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + themeColor + ')';
+              currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
             }
             globeInstance.controls().autoRotate = false;
             currentActiveFlag = img;
             img.style.transform = 'translate(-50%, -50%) scale(1.5)';
             img.style.zIndex = '1000';
-            img.style.filter = 'drop-shadow(0 0 8px ' + themeColor + ')';
+            img.style.filter = 'drop-shadow(0 0 8px ' + lineColor + ')';
             var rect = img.getBoundingClientRect();
             var parentRect = renderArea.getBoundingClientRect();
             tooltip.style.display = 'block';
@@ -2070,7 +2184,7 @@ function initializeEarth() {
         return el;
       })
       .ringsData(pointsData.filter(function (item) { return item.type === 'server'; }))
-      .ringColor(function () { return '#3b82f6'; })
+      .ringColor(function () { return config.ring; })
       .ringMaxRadius(2)
       .ringPropagationSpeed(1)
       .ringRepeatPeriod(1250)
@@ -2079,12 +2193,16 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      .arcColor(function () { return '#3b82f6'; })
-      .arcDashLength(0.5)
-      .arcDashGap(1)
-      .arcDashAnimateTime(1750)
-      .arcStroke(0.8)
+      // 弧线：参考图是细实线，夜间冰蓝、白天绿色，线宽 0.3
+      .arcColor(function () { return config.arc; })
+      .arcDashLength(1)
+      .arcDashGap(0)
+      .arcDashAnimateTime(0)
+      .arcStroke(0.3)
       .arcAltitudeAutoScale(0.5);
+    // 贴图异步加载，bump 可能比主贴图晚到；onGlobeReady 之外再延时补一次
+    applyGlobeHiRes();
+    setTimeout(applyGlobeHiRes, 1500);
     var viewLat = window.currentUserGeo ? window.currentUserGeo.lat : 25;
     var viewLng = window.currentUserGeo ? window.currentUserGeo.lng : 110;
     globeInstance.pointOfView({ lat: viewLat, lng: viewLng, altitude: initialAltitude });
@@ -2115,13 +2233,19 @@ function initializeEarth() {
       lastAppliedThemeConfig.bg !== newConfig.bg ||
       lastAppliedThemeConfig.bgImage !== newConfig.bgImage ||
       lastAppliedThemeConfig.globeImage !== newConfig.globeImage ||
-      lastAppliedThemeConfig.atmosphere !== newConfig.atmosphere;
+      lastAppliedThemeConfig.atmosphere !== newConfig.atmosphere ||
+      lastAppliedThemeConfig.arc !== newConfig.arc ||
+      lastAppliedThemeConfig.ring !== newConfig.ring;
     if (!hasChanged) return;
     globeInstance.backgroundColor(newConfig.bg);
     globeInstance.backgroundImageUrl(newConfig.bgImage);
     globeInstance.globeImageUrl(newConfig.globeImage);
+    // 换贴图后新纹理的 anisotropy 会回到默认 1，延时重新拉满
+    setTimeout(applyGlobeHiRes, 800);
     globeInstance.atmosphereColor(newConfig.atmosphere);
-    lastAppliedThemeConfig = { bg: newConfig.bg, bgImage: newConfig.bgImage, globeImage: newConfig.globeImage, atmosphere: newConfig.atmosphere };
+    globeInstance.arcColor(function () { return newConfig.arc; });
+    globeInstance.ringColor(function () { return newConfig.ring; });
+    lastAppliedThemeConfig = { bg: newConfig.bg, bgImage: newConfig.bgImage, globeImage: newConfig.globeImage, atmosphere: newConfig.atmosphere, arc: newConfig.arc, ring: newConfig.ring };
   }
 
   overlay.addEventListener('click', function (e) {

@@ -10,7 +10,7 @@
   // Note: the v2 guardian inside the main script also re-attaches nodes if
   // InjectContext disposes them, so this guard only stops a second full run.
   if (document.getElementById('welcome-bubble-container')) return;
-  var CSS = "/* ================= 1. Nezha v2 主题变量适配 =================\n   Nezha v2 官方用户前端（nezha-dash-v2）是 Tailwind v4 + shadcn 风格：\n   :root / html.dark 上定义的是 HSL 三元组变量（--background / --foreground /\n   --card / --primary / --muted-foreground / --border / --destructive 等），\n   主题由 html 的 light/dark class + localStorage \"vite-ui-theme\" 控制。\n   这里把它们映射成 --nb-* 变量，并给出去掉 Nezha 环境也能用的回退值。\n   （旧版 Komari 主题的变量在 Nezha 里不存在，已全部替换；v2 的变量名与\n   v1 相同，见 nezha-dash-v2 src/index.css 的 :root / .dark，HSL 三元组。） */\n:root {\n  --nb-bg: hsl(var(--background, 0 0% 98%));\n  --nb-card: hsl(var(--card, 0 0% 100%));\n  --nb-fg: hsl(var(--foreground, 20 14.3% 4.1%));\n  --nb-muted: hsl(var(--muted-foreground, 25 5.3% 44.7%));\n  --nb-border: hsl(var(--border, 20 5.9% 90%));\n  --nb-accent: hsl(var(--primary, 24 9.8% 10%));\n  --nb-accent-fg: hsl(var(--primary-foreground, 60 9.1% 97.8%));\n  --nb-danger: hsl(var(--destructive, 0 84.2% 60.2%));\n  --nb-shadow: rgba(0, 0, 0, 0.14);\n  --nb-accent-solid: #3b82f6; /* 地球弧线/光晕等需要纯色时的回退色 */\n}\n::-webkit-scrollbar { width: 5px !important; height: 5px !important; }\n::-webkit-scrollbar-track { background-color: transparent !important; }\n::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.55) !important; border-radius: 8px !important; }\n::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.85) !important; }\n\n/* Logo/图片样式 */\n.bubble-logo-image {\n  height: 32px;\n  width: 32px;\n  border-radius: 50%;\n}\n/* 气泡/模态框通用容器样式（共享背景、边框、阴影） */\n.welcome-bubble, .custom-alert-modal, .finance-widget {\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  color: var(--nb-fg);\n}\n/* 气泡/模态框通用头部样式 */\n.bubble-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 10px 15px;\n  border-bottom: 1px solid var(--nb-border);\n}\n.bubble-title {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-weight: 700;\n  font-size: 1.1rem;\n  color: var(--nb-accent);\n  margin: 0;\n}\n.bubble-close {\n  background: none;\n  border: none;\n  color: var(--nb-muted);\n  cursor: pointer;\n  font-size: 1.1rem;\n  padding: 0;\n  transition: color 0.3s ease, transform 0.3s ease;\n}\n.bubble-close:hover {\n  color: var(--nb-accent);\n  transform: rotate(90deg);\n}\n.bubble-content { padding: 15px; }\n/* 气泡通用信息行样式 */\n.bubble-info {\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.bubble-info svg { flex-shrink: 0; color: var(--nb-muted); }\n.bubble-info:last-child { margin-bottom: 0; }\n/* 剧透文本样式 */\n.spoiler {\n  background: var(--nb-accent);\n  color: transparent !important;\n  user-select: none;\n  cursor: pointer;\n  border-radius: 4px;\n  padding: 2px 6px;\n  transition: all 0.3s ease;\n}\n.spoiler:hover { opacity: 0.8; }\n/* 帮助图标/工具提示样式 */\n.help-icon {\n  cursor: help;\n  color: var(--nb-muted);\n  display: flex;\n  align-items: center;\n  position: relative;\n}\n.help-icon.show-help { display: flex; }\n.help-icon:hover { color: var(--nb-accent); }\n.help-icon::after {\n  content: attr(data-tooltip);\n  position: absolute;\n  bottom: 100%;\n  right: -5px;\n  width: max-content;\n  max-width: 200px;\n  padding: 8px 12px;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  font-size: 0.75rem;\n  line-height: 1.4;\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1100;\n  opacity: 0;\n  visibility: hidden;\n  transform: translateY(10px) scale(0.95);\n  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  pointer-events: none;\n  white-space: pre-wrap;\n  text-align: left;\n}\n.help-icon.active::after {\n  opacity: 1;\n  visibility: visible;\n  transform: translateY(-5px) scale(1);\n}\n\n/* 欢迎气泡 (Welcome Bubble) */\n.welcome-bubble {\n  position: fixed;\n  left: 5px;\n  bottom: 45px;\n  z-index: 1050;\n  max-width: 320px;\n  border-radius: 16px;\n  transform: translateY(150%);\n  opacity: 0;\n  transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s;\n  pointer-events: none;\n}\n.welcome-bubble.show {\n  transform: translateY(0);\n  opacity: 1;\n  pointer-events: auto;\n}\n\n/* 资产统计 (Finance Widget) */\n.finance-widget {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  z-index: 1040;\n  width: 280px;\n  border-radius: 16px;\n  transition: all 0.3s ease;\n  display: flex;\n  flex-direction: column;\n  opacity: 0;\n  transform: translateY(-20px);\n  pointer-events: none;\n}\n.finance-widget.show {\n  opacity: 1;\n  transform: translateY(0);\n  pointer-events: auto;\n  z-index: 1040;\n}\n/* 悬浮按钮（资产 + 地球共用）：按 Komari 站截图，不要边框、透底\n   （背景透明、无阴影、无毛玻璃），里面是 24px 描边图标 */\n.finance-ball {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  width: 45px;\n  height: 45px;\n  border-radius: 50%;\n  background: transparent;\n  border: none;\n  box-shadow: none;\n  z-index: 1041;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  cursor: pointer;\n  transition: all 0.3s ease;\n  opacity: 0;\n  transform: scale(0);\n  pointer-events: none;\n  color: var(--nb-accent);\n}\n.finance-ball.show {\n  opacity: 1;\n  transform: scale(1);\n  pointer-events: auto;\n}\n.finance-ball:hover {\n  transform: scale(1.1);\n  color: var(--nb-accent);\n}\n.finance-row {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n}\n.finance-row .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-value { font-weight: bold; color: var(--nb-accent); }\n.finance-separator {\n  height: 1px;\n  background-color: var(--nb-border);\n  margin: 10px 0;\n  width: 100%;\n}\n.finance-list {\n  max-height: 200px;\n  overflow-y: auto;\n  padding-right: 5px;\n  margin-bottom: 5px;\n}\n.finance-list-item {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 6px;\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n}\n.finance-list-item .item-name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  max-width: 140px;\n  color: var(--nb-fg);\n}\n.finance-list-item .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-list-item .item-value { font-weight: 500; color: var(--nb-accent); }\n.finance-list-item .item-note { font-size: 0.7rem; color: var(--nb-muted); }\n.finance-tooltip {\n  font-size: 0.7rem;\n  color: var(--nb-muted);\n  margin-top: 2px;\n  text-align: right;\n}\n.finance-controls {\n  display: flex;\n  gap: 8px;\n  margin-top: 5px;\n  padding-top: 10px;\n  border-top: 1px solid var(--nb-border);\n  justify-content: space-between;\n  align-items: center;\n}\n.finance-select {\n  background: transparent;\n  border: 1px solid var(--nb-border);\n  color: var(--nb-fg);\n  border-radius: 4px;\n  font-size: 0.75rem;\n  padding: 2px 4px;\n  outline: none;\n}\n.finance-select option { color: #111; }\n.finance-btn {\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  color: var(--nb-muted);\n  transition: color 0.2s;\n  padding: 2px;\n}\n.finance-btn:hover { color: var(--nb-accent); }\n.finance-btn.active svg { color: var(--nb-accent); fill: var(--nb-accent); fill-opacity: 0.2; }\n\n/* 自定义警告模态框 (Custom Alert Modal) */\n.custom-alert-overlay {\n  position: fixed; top: 0; left: 0; width: 100%; height: 100%;\n  background-color: rgba(0, 0, 0, 0.4);\n  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);\n  z-index: 2000; display: none; align-items: center; justify-content: center;\n  opacity: 0; transition: opacity 0.3s ease;\n}\n.custom-alert-modal {\n  padding: 0; border-radius: 16px; max-width: 350px; width: 90%;\n  transform: scale(0.95); transition: transform 0.3s ease;\n  display: flex; flex-direction: column;\n}\n.alert-reason-text {\n  font-size: 1.2rem;\n  font-weight: bold;\n  margin: 0;\n  color: var(--nb-danger);\n}\n.custom-alert-modal .bubble-content svg { color: var(--nb-danger); }\n\n/* --- 地球渲染组件 (Earth Globe Component) --- */\n#earth-ball { top: 125px; z-index: 1039; }\n#earth-modal-content {\n  width: 80vw;\n  height: 80vh;\n  max-width: 100%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  border-radius: 16px;\n}\n#earth-render-area {\n  width: 100%;\n  height: 100%;\n  flex: 1;\n  cursor: grab;\n  opacity: 0;\n  transition: opacity 0.5s ease;\n  background: transparent;\n  touch-action: none;\n  position: relative;\n  overflow: hidden;\n}\n#earth-render-area.ready { opacity: 1; }\n#earth-render-area:active { cursor: grabbing; }\n.earth-user-marker {\n  width: 36px;\n  height: 36px;\n  border-radius: 50%;\n  background: rgba(255, 255, 255, 0.95);\n  box-shadow: 0 0 15px rgba(34, 197, 94, 0.55), 0 0 30px rgba(34, 197, 94, 0.35);\n  cursor: pointer;\n  z-index: 1002;\n  animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  overflow: hidden;\n  border: 3px solid #22c55e;\n}\n.earth-user-marker img {\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  border-radius: 50%;\n}\n@keyframes userPulse {\n  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: translate(-50%, -50%) scale(1); }\n  50% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1.15); }\n  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1); }\n}\n.earth-flag-img {\n  width: 36px;\n  height: auto;\n  display: block;\n  cursor: pointer;\n  transform: translate(-50%, -50%);\n  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n  filter: drop-shadow(0 0 4px var(--nb-accent-solid));\n  border-radius: 6px;\n  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);\n}\n#earth-tooltip {\n  position: absolute;\n  display: none;\n  padding: 12px 16px;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-accent-solid);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  pointer-events: auto;\n  z-index: 9999;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  max-width: 300px;\n  min-width: 200px;\n}\n.earth-tooltip-header {\n  font-weight: 900;\n  font-size: 1rem;\n  margin-bottom: 8px;\n  color: var(--nb-accent-solid);\n  border-bottom: 1px solid var(--nb-border);\n  padding-bottom: 6px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.earth-tooltip-content { max-height: 200px; overflow-y: auto; padding-right: 4px; }\n.earth-tooltip-content::-webkit-scrollbar { width: 4px; }\n.earth-tooltip-content::-webkit-scrollbar-thumb { background-color: var(--nb-accent-solid); border-radius: 4px; }\n.earth-tooltip-item {\n  font-size: 0.95rem;\n  padding: 4px 0;\n  color: var(--nb-fg);\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.earth-tooltip-item::before {\n  content: '•';\n  color: var(--nb-accent-solid);\n  font-weight: bold;\n  font-size: 1.4em;\n}\n.earth-overlay-counter {\n  position: absolute;\n  top: 20px;\n  left: 20px;\n  z-index: 1001;\n  pointer-events: none;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-border);\n  padding: 12px 20px;\n  border-radius: 12px;\n  display: flex;\n  flex-direction: column;\n  box-shadow: 0 4px 12px var(--nb-shadow);\n}\n.counter-label {\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n  text-transform: uppercase;\n  letter-spacing: 1.5px;\n  margin-bottom: 4px;\n}\n.counter-value {\n  font-size: 2rem;\n  font-weight: 800;\n  color: var(--nb-accent-solid);\n  line-height: 1;\n}\n\n/* 移动设备（小于 576px） */\n@media (max-width: 576px) {\n  .welcome-bubble { max-width: calc(100vw - 30px); left: 15px; bottom: 15px; }\n  .finance-widget { width: calc(100vw - 40px); right: 20px; }\n}\n/* 平板设备（小于 768px）——主要针对地球组件 */\n@media (max-width: 768px) {\n  #earth-modal-content { width: 95vw; height: 75vh; max-width: none; border-radius: 16px; }\n  .earth-overlay-counter { top: 10px; left: 10px; padding: 8px 12px; }\n  .counter-label { font-size: 0.65rem; }\n  .counter-value { font-size: 1.5rem; }\n  .earth-user-marker { width: 28px; height: 28px; }\n}";
+  var CSS = "/* ================= 1. Nezha v2 主题变量适配 =================\n   Nezha v2 官方用户前端（nezha-dash-v2）是 Tailwind v4 + shadcn 风格：\n   :root / html.dark 上定义的是 HSL 三元组变量（--background / --foreground /\n   --card / --primary / --muted-foreground / --border / --destructive 等），\n   主题由 html 的 light/dark class + localStorage \"vite-ui-theme\" 控制。\n   这里把它们映射成 --nb-* 变量，并给出去掉 Nezha 环境也能用的回退值。\n   （旧版 Komari 主题的变量在 Nezha 里不存在，已全部替换；v2 的变量名与\n   v1 相同，见 nezha-dash-v2 src/index.css 的 :root / .dark，HSL 三元组。） */\n:root {\n  --nb-bg: hsl(var(--background, 0 0% 98%));\n  --nb-card: hsl(var(--card, 0 0% 100%));\n  --nb-fg: hsl(var(--foreground, 20 14.3% 4.1%));\n  --nb-muted: hsl(var(--muted-foreground, 25 5.3% 44.7%));\n  --nb-border: hsl(var(--border, 20 5.9% 90%));\n  --nb-accent: hsl(var(--primary, 24 9.8% 10%));\n  --nb-accent-fg: hsl(var(--primary-foreground, 60 9.1% 97.8%));\n  --nb-danger: hsl(var(--destructive, 0 84.2% 60.2%));\n  --nb-shadow: rgba(0, 0, 0, 0.14);\n  --nb-accent-solid: #3b82f6; /* 地球弧线/光晕等需要纯色时的回退色 */\n}\n::-webkit-scrollbar { width: 5px !important; height: 5px !important; }\n::-webkit-scrollbar-track { background-color: transparent !important; }\n::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.55) !important; border-radius: 8px !important; }\n::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.85) !important; }\n\n/* Logo/图片样式 */\n.bubble-logo-image {\n  height: 32px;\n  width: 32px;\n  border-radius: 50%;\n}\n/* 气泡/模态框通用容器样式（共享背景、边框、阴影） */\n.welcome-bubble, .custom-alert-modal, .finance-widget {\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  color: var(--nb-fg);\n}\n/* 气泡/模态框通用头部样式 */\n.bubble-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 10px 15px;\n  border-bottom: 1px solid var(--nb-border);\n}\n.bubble-title {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-weight: 700;\n  font-size: 1.1rem;\n  color: var(--nb-accent);\n  margin: 0;\n}\n.bubble-close {\n  background: none;\n  border: none;\n  color: var(--nb-muted);\n  cursor: pointer;\n  font-size: 1.1rem;\n  padding: 0;\n  transition: color 0.3s ease, transform 0.3s ease;\n}\n.bubble-close:hover {\n  color: var(--nb-accent);\n  transform: rotate(90deg);\n}\n.bubble-content { padding: 15px; }\n/* 气泡通用信息行样式 */\n.bubble-info {\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.bubble-info svg { flex-shrink: 0; color: var(--nb-muted); }\n.bubble-info:last-child { margin-bottom: 0; }\n/* 剧透文本样式 */\n.spoiler {\n  background: var(--nb-accent);\n  color: transparent !important;\n  user-select: none;\n  cursor: pointer;\n  border-radius: 4px;\n  padding: 2px 6px;\n  transition: all 0.3s ease;\n}\n.spoiler:hover { opacity: 0.8; }\n/* 帮助图标/工具提示样式 */\n.help-icon {\n  cursor: help;\n  color: var(--nb-muted);\n  display: flex;\n  align-items: center;\n  position: relative;\n}\n.help-icon.show-help { display: flex; }\n.help-icon:hover { color: var(--nb-accent); }\n.help-icon::after {\n  content: attr(data-tooltip);\n  position: absolute;\n  bottom: 100%;\n  right: -5px;\n  width: max-content;\n  max-width: 200px;\n  padding: 8px 12px;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  font-size: 0.75rem;\n  line-height: 1.4;\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 4px 12px var(--nb-shadow);\n  z-index: 1100;\n  opacity: 0;\n  visibility: hidden;\n  transform: translateY(10px) scale(0.95);\n  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  pointer-events: none;\n  white-space: pre-wrap;\n  text-align: left;\n}\n.help-icon.active::after {\n  opacity: 1;\n  visibility: visible;\n  transform: translateY(-5px) scale(1);\n}\n\n/* 欢迎气泡 (Welcome Bubble) —— 磨砂玻璃半透明\n   注意：上面通用规则给的气泡底是 var(--nb-card) 不透明色，backdrop-filter\n   再强也透不出背景；所以这里单独把底改成半透明（下面的规则后出现、同\n   样权重，会覆盖通用规则），只改欢迎气泡，不动资产统计/警告弹窗。\n   白天：半透明白底 + 白色半透明边框；黑夜（html.dark）：半透明深蓝底 +\n   细腻的白色半透明边框；两边都用 blur(18px) saturate(180%) + 柔和阴影，\n   文字颜色仍用 --nb-fg / --nb-accent，保证清晰可读。 */\n.welcome-bubble {\n  position: fixed;\n  left: 5px;\n  bottom: 45px;\n  z-index: 1050;\n  max-width: 320px;\n  border-radius: 16px;\n  transform: translateY(150%);\n  opacity: 0;\n  transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s;\n  pointer-events: none;\n  background-color: rgba(255, 255, 255, 0.62);\n  border: 1px solid rgba(255, 255, 255, 0.65);\n  backdrop-filter: blur(18px) saturate(180%);\n  -webkit-backdrop-filter: blur(18px) saturate(180%);\n  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.5);\n}\nhtml.dark .welcome-bubble {\n  background-color: rgba(15, 23, 42, 0.55);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);\n}\n/* 磨砂底上分隔线也改淡，避免一条实色线压住玻璃感 */\n.welcome-bubble .bubble-header {\n  border-bottom: 1px solid rgba(148, 163, 184, 0.25);\n}\n.welcome-bubble.show {\n  transform: translateY(0);\n  opacity: 1;\n  pointer-events: auto;\n}\n\n/* 资产统计 (Finance Widget) */\n.finance-widget {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  z-index: 1040;\n  width: 280px;\n  border-radius: 16px;\n  transition: all 0.3s ease;\n  display: flex;\n  flex-direction: column;\n  opacity: 0;\n  transform: translateY(-20px);\n  pointer-events: none;\n}\n.finance-widget.show {\n  opacity: 1;\n  transform: translateY(0);\n  pointer-events: auto;\n  z-index: 1040;\n}\n/* 悬浮按钮（资产 + 地球共用）：按 Komari 站截图，不要边框、透底\n   （背景透明、无阴影、无毛玻璃），里面是 24px 描边图标 */\n.finance-ball {\n  position: fixed;\n  right: 20px;\n  top: 70px;\n  width: 45px;\n  height: 45px;\n  border-radius: 50%;\n  background: transparent;\n  border: none;\n  box-shadow: none;\n  z-index: 1041;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  cursor: pointer;\n  transition: all 0.3s ease;\n  opacity: 0;\n  transform: scale(0);\n  pointer-events: none;\n  color: var(--nb-accent);\n}\n.finance-ball.show {\n  opacity: 1;\n  transform: scale(1);\n  pointer-events: auto;\n}\n.finance-ball:hover {\n  transform: scale(1.1);\n  color: var(--nb-accent);\n}\n.finance-row {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 8px;\n  font-size: 0.85rem;\n}\n.finance-row .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-value { font-weight: bold; color: var(--nb-accent); }\n.finance-separator {\n  height: 1px;\n  background-color: var(--nb-border);\n  margin: 10px 0;\n  width: 100%;\n}\n.finance-list {\n  max-height: 200px;\n  overflow-y: auto;\n  padding-right: 5px;\n  margin-bottom: 5px;\n}\n.finance-list-item {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 6px;\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n}\n.finance-list-item .item-name {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  max-width: 140px;\n  color: var(--nb-fg);\n}\n.finance-list-item .item-right {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  flex-shrink: 0;\n}\n.finance-list-item .item-value { font-weight: 500; color: var(--nb-accent); }\n.finance-list-item .item-note { font-size: 0.7rem; color: var(--nb-muted); }\n.finance-tooltip {\n  font-size: 0.7rem;\n  color: var(--nb-muted);\n  margin-top: 2px;\n  text-align: right;\n}\n.finance-controls {\n  display: flex;\n  gap: 8px;\n  margin-top: 5px;\n  padding-top: 10px;\n  border-top: 1px solid var(--nb-border);\n  justify-content: space-between;\n  align-items: center;\n}\n.finance-select {\n  background: transparent;\n  border: 1px solid var(--nb-border);\n  color: var(--nb-fg);\n  border-radius: 4px;\n  font-size: 0.75rem;\n  padding: 2px 4px;\n  outline: none;\n}\n.finance-select option { color: #111; }\n.finance-btn {\n  background: transparent;\n  border: none;\n  cursor: pointer;\n  color: var(--nb-muted);\n  transition: color 0.2s;\n  padding: 2px;\n}\n.finance-btn:hover { color: var(--nb-accent); }\n.finance-btn.active svg { color: var(--nb-accent); fill: var(--nb-accent); fill-opacity: 0.2; }\n\n/* 自定义警告模态框 (Custom Alert Modal) */\n.custom-alert-overlay {\n  position: fixed; top: 0; left: 0; width: 100%; height: 100%;\n  background-color: rgba(0, 0, 0, 0.4);\n  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);\n  z-index: 2000; display: none; align-items: center; justify-content: center;\n  opacity: 0; transition: opacity 0.3s ease;\n}\n.custom-alert-modal {\n  padding: 0; border-radius: 16px; max-width: 350px; width: 90%;\n  transform: scale(0.95); transition: transform 0.3s ease;\n  display: flex; flex-direction: column;\n}\n.alert-reason-text {\n  font-size: 1.2rem;\n  font-weight: bold;\n  margin: 0;\n  color: var(--nb-danger);\n}\n.custom-alert-modal .bubble-content svg { color: var(--nb-danger); }\n\n/* --- 地球渲染组件 (Earth Globe Component) --- */\n#earth-ball { top: 125px; z-index: 1039; }\n#earth-modal-content {\n  width: 80vw;\n  height: 80vh;\n  max-width: 100%;\n  background-color: var(--nb-card);\n  border: 1px solid var(--nb-border);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  border-radius: 16px;\n}\n#earth-render-area {\n  width: 100%;\n  height: 100%;\n  flex: 1;\n  cursor: grab;\n  opacity: 0;\n  transition: opacity 0.5s ease;\n  background: transparent;\n  touch-action: none;\n  position: relative;\n  overflow: hidden;\n}\n#earth-render-area.ready { opacity: 1; }\n#earth-render-area:active { cursor: grabbing; }\n.earth-user-marker {\n  width: 36px;\n  height: 36px;\n  border-radius: 50%;\n  background: rgba(255, 255, 255, 0.95);\n  box-shadow: 0 0 15px rgba(34, 197, 94, 0.55), 0 0 30px rgba(34, 197, 94, 0.35);\n  cursor: pointer;\n  z-index: 1002;\n  animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  overflow: hidden;\n  border: 3px solid #22c55e;\n}\n.earth-user-marker img {\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  border-radius: 50%;\n}\n@keyframes userPulse {\n  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: translate(-50%, -50%) scale(1); }\n  50% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1.15); }\n  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1); }\n}\n.earth-flag-img {\n  width: 36px;\n  height: 24px;\n  object-fit: cover;\n  display: block;\n  cursor: pointer;\n  transform: translate(-50%, -50%);\n  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n  filter: drop-shadow(0 0 4px var(--nb-accent-solid));\n  border-radius: 6px;\n  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);\n}\n#earth-tooltip {\n  position: absolute;\n  display: none;\n  padding: 12px 16px;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-accent-solid);\n  border-radius: 8px;\n  color: var(--nb-fg);\n  pointer-events: auto;\n  z-index: 9999;\n  font-size: 0.85rem;\n  line-height: 1.5;\n  box-shadow: 0 8px 24px var(--nb-shadow);\n  max-width: 300px;\n  min-width: 200px;\n}\n.earth-tooltip-header {\n  font-weight: 900;\n  font-size: 1rem;\n  margin-bottom: 8px;\n  color: var(--nb-accent-solid);\n  border-bottom: 1px solid var(--nb-border);\n  padding-bottom: 6px;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n.earth-tooltip-content { max-height: 200px; overflow-y: auto; padding-right: 4px; }\n.earth-tooltip-content::-webkit-scrollbar { width: 4px; }\n.earth-tooltip-content::-webkit-scrollbar-thumb { background-color: var(--nb-accent-solid); border-radius: 4px; }\n.earth-tooltip-item {\n  font-size: 0.95rem;\n  padding: 4px 0;\n  color: var(--nb-fg);\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n.earth-tooltip-item::before {\n  content: '•';\n  color: var(--nb-accent-solid);\n  font-weight: bold;\n  font-size: 1.4em;\n}\n.earth-overlay-counter {\n  position: absolute;\n  top: 20px;\n  left: 20px;\n  z-index: 1001;\n  pointer-events: none;\n  background: var(--nb-card);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  border: 1px solid var(--nb-border);\n  padding: 12px 20px;\n  border-radius: 12px;\n  display: flex;\n  flex-direction: column;\n  box-shadow: 0 4px 12px var(--nb-shadow);\n}\n.counter-label {\n  font-size: 0.75rem;\n  color: var(--nb-muted);\n  text-transform: uppercase;\n  letter-spacing: 1.5px;\n  margin-bottom: 4px;\n}\n.counter-value {\n  font-size: 2rem;\n  font-weight: 800;\n  color: var(--nb-accent-solid);\n  line-height: 1;\n}\n\n/* 移动设备（小于 576px） */\n@media (max-width: 576px) {\n  .welcome-bubble { max-width: calc(100vw - 30px); left: 15px; bottom: 15px; }\n  .finance-widget { width: calc(100vw - 40px); right: 20px; }\n}\n/* 平板设备（小于 768px）——主要针对地球组件 */\n@media (max-width: 768px) {\n  #earth-modal-content { width: 95vw; height: 75vh; max-width: none; border-radius: 16px; }\n  .earth-overlay-counter { top: 10px; left: 10px; padding: 8px 12px; }\n  .counter-label { font-size: 0.65rem; }\n  .counter-value { font-size: 1.5rem; }\n  .earth-user-marker { width: 28px; height: 28px; }\n}";
   var HTML = "<!--欢迎气泡 (Welcome Bubble)-->\n<div id=\"welcome-bubble-container\" class=\"welcome-bubble\">\n<div class=\"bubble-header\">\n  <h3 class=\"bubble-title\">\n    <img src=\"/favicon.ico\" class=\"bubble-logo-image\" alt=\"logo\">\n    <span id=\"nb-site-name\">Nezha</span>\n  </h3>\n  <button class=\"bubble-close\" id=\"bubbleClose\" aria-label=\"关闭\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n      <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n    </svg>\n  </button>\n</div>\n<div class=\"bubble-content\">\n  <p class=\"bubble-info\" id=\"location\">欢迎你，朋友！</p>\n  <p class=\"bubble-info\" id=\"os\">\n    <span id=\"os-icon\"></span>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"browser\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\"></path><path d=\"M2 12h20\"></path></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"ip\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"isp\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10\"></path></svg>\n    <span class=\"data-text\"></span>\n  </p>\n  <p class=\"bubble-info\" id=\"date\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><polyline points=\"12 6 12 12 16 14\"></polyline></svg>\n    <span class=\"data-text\"></span>\n  </p>\n</div>\n</div>\n\n<!--资产统计 (Finance Widget)-->\n<div id=\"finance-widget\" class=\"finance-widget\">\n<div class=\"bubble-header\">\n  <h3 class=\"bubble-title\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\"/><path d=\"M12 18V6\"/></svg>\n    资产统计\n  </h3>\n  <button class=\"bubble-close\" id=\"financeClose\" aria-label=\"关闭\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n      <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n    </svg>\n  </button>\n</div>\n<div class=\"bubble-content\">\n  <div class=\"finance-row\">\n    <span>服务器数量</span>\n    <span class=\"finance-value\" id=\"fin-total-count\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>总价值</span>\n    <span class=\"finance-value\" id=\"fin-total-price\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>月均支出</span>\n    <span class=\"finance-value\" id=\"fin-monthly-price\">...</span>\n  </div>\n  <div class=\"finance-row\">\n    <span>剩余总价值</span>\n    <div class=\"item-right\">\n      <span class=\"finance-value\" id=\"fin-remain-value\">...</span>\n      <div class=\"help-icon\" id=\"fin-remain-help\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\"/><path d=\"M12 17h.01\"/></svg>\n      </div>\n    </div>\n  </div>\n\n  <div class=\"finance-separator\"></div>\n  <div id=\"fin-detail-list\" class=\"finance-list\">\n  </div>\n\n  <div class=\"finance-tooltip\" id=\"fin-ex-rate\">汇率更新中...</div>\n  <div class=\"finance-controls\">\n    <div style=\"display: flex; gap: 8px;\">\n      <select id=\"fin-currency\" class=\"finance-select\">\n        <option value=\"CNY\">CNY (￥)</option>\n        <option value=\"USD\">USD ($)</option>\n        <option value=\"HKD\">HKD (HK$)</option>\n        <option value=\"EUR\">EUR (€)</option>\n        <option value=\"GBP\">GBP (£)</option>\n        <option value=\"JPY\">JPY (¥)</option>\n      </select>\n      <select id=\"fin-sort\" class=\"finance-select\">\n        <option value=\"display_desc\">展示排序（默认）</option>\n        <option value=\"display_asc\">展示排序 倒序</option>\n        <option value=\"price_asc\">价格 正序</option>\n        <option value=\"price_desc\">价格 倒序</option>\n      </select>\n    </div>\n    <div style=\"display:flex; gap:5px;\">\n      <button class=\"finance-btn\" id=\"fin-toggle-free\" title=\"排除白嫖/计入白嫖\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 5c-1.5 0-2.8 0.6-3.8 1.6l-1.2 1.2-1.2-1.2C11.8 5.6 10.5 5 9 5 5.5 5 3 7.6 3 11c0 3.5 3 7.6 9 13 6-5.4 9-9.5 9-13 0-3.4-2.5-6-6-6z\"/></svg>\n      </button>\n      <button class=\"finance-btn\" id=\"fin-refresh\" title=\"刷新数据\">\n        <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38\"/></svg>\n      </button>\n    </div>\n  </div>\n</div>\n</div>\n<!--资产悬浮球 (Finance Ball)-->\n<div id=\"finance-ball\" class=\"finance-ball\" title=\"资产统计\">\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\"/><path d=\"M12 18V6\"/></svg>\n</div>\n\n<!--地球组件 (Earth Modal Overlay)-->\n<div id=\"earth-modal-overlay\" class=\"custom-alert-overlay\">\n<div id=\"earth-modal-content\" class=\"custom-alert-modal\">\n  <div class=\"earth-overlay-counter\">\n    <span class=\"counter-label\">Total Servers</span>\n    <span class=\"counter-value\" id=\"earth-total-count\">0</span>\n  </div>\n  <div id=\"earth-render-area\"></div>\n  <div id=\"earth-tooltip\"></div>\n</div>\n</div>\n<!--地球悬浮球 (Earth Ball)-->\n<div id=\"earth-ball\" class=\"finance-ball\" title=\"服务器地球\">\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"12\" cy=\"12\" r=\"10\"></circle>\n  <path d=\"M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/>\n</svg>\n</div>\n\n<!--自定义警告 (Custom Alert Overlay)-->\n<div id=\"custom-alert-overlay\" class=\"custom-alert-overlay\">\n<div id=\"custom-alert-modal\" class=\"custom-alert-modal\">\n  <div class=\"bubble-header\">\n    <h3 class=\"bubble-title\">\n      <img src=\"/favicon.ico\" class=\"bubble-logo-image\" alt=\"logo\">\n      警告\n    </h3>\n    <button class=\"bubble-close\" id=\"alert-close-btn\" aria-label=\"关闭\">\n      <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" fill=\"currentColor\" viewBox=\"0 0 16 16\">\n        <path d=\"M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z\"/>\n      </svg>\n    </button>\n  </div>\n  <div class=\"bubble-content\" style=\"display: flex; flex-direction: column; align-items: center;\">\n    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"64\" height=\"64\" fill=\"currentColor\" viewBox=\"0 0 16 16\" style=\"margin-bottom: 1rem;\">\n      <path d=\"M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.89 0 1.438-.99.982-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z\"/>\n    </svg>\n    <div class=\"alert-reason-container\">\n      <p id=\"trigger-reason\" class=\"alert-reason-text\"></p>\n    </div>\n  </div>\n</div>\n</div>";
   function inject() {
     if (!document.getElementById('nezha-beautify-v2-style')) {
@@ -87,17 +87,29 @@ var NezhaBeautifyConfig = Object.assign({
     // InjectContext 会逐个等待外链加载，失败会清掉整段自定义代码。
     globeLib: '//unpkg.com/globe.gl',
     globeLibFallback: 'https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js',
-    cdnDay: '//unpkg.com/three-globe/example/img/earth-day.jpg',
+    // 地球贴图（最高清，2026-11-21 实测）：
+    // 白天原来用 earth-day.jpg 只有 1600×800，是白天糊的主因；改成
+    // earth-blue-marble.jpg 4096×2048（unpkg 200，1.4MB）。夜贴图
+    // earth-night.jpg 本来就是 4096×2048，保留。8K（8192×4096）找过：
+    // solarsystemscope 的 8k 图被验证码墙挡住、NASA EO 图超时，都不可靠，
+    // 所以 4096 就是当前可靠 CDN 的最高级。
+    // 每张贴图都有 jsdelivr 回退（同文件、实测 200 且字节数与 unpkg 一致）；
+    // 主链加载失败时 resolveGlobeTextures() 会自动换回退地址。
+    cdnDay: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+    cdnDayFallback: 'https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-blue-marble.jpg',
     cdnNight: '//unpkg.com/three-globe/example/img/earth-night.jpg',
+    cdnNightFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg',
     cdnSky: '//unpkg.com/three-globe/example/img/night-sky.png',
+    cdnSkyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png',
     cdnTopology: '//unpkg.com/three-globe/example/img/earth-topology.png',
+    cdnTopologyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png',
     // 本项目 images/ 里有上述三张图的本地副本；如需用自己的图床，
     // 把下面三项改成你自己的 URL 即可（留空则用 CDN）。
     localDay: '',
     localNight: '',
     localSky: '',
     // 国旗图标：Nezha 前端自带 flag-icons，但自定义代码里最稳的是 flagcdn。
-    flagUrl: function (code) { return 'https://flagcdn.com/w40/' + String(code).toLowerCase() + '.png'; }
+    flagUrl: function (code) { return 'https://flagcdn.com/h60/' + String(code).toLowerCase() + '.png'; }
   },
 
   // ---- 资产统计 ----
@@ -1154,8 +1166,70 @@ function initializeEarth() {
   var G = NB.cfg.globe;
   var globeInstance = null;
   var isGlobeInitialized = false;
+  var isResolvingTextures = false;
   var currentActiveFlag = null;
   var lastAppliedThemeConfig = null;
+  // 贴图回退探测的结果缓存（resolveGlobeTextures 填入；getBackgroundConfig
+  // 与 bumpImageUrl 优先用它，主链失败时自动换 jsdelivr 回退地址）
+  var resolvedTex = {};
+
+  // 单张贴图探测：主链能加载就用主链，失败换回退（Image 预加载，不画出来）
+  function resolveTexture(primary, fallback, cb) {
+    if (!primary) { if (cb) cb(fallback || ''); return; }
+    var img = new Image();
+    img.onload = function () { if (cb) cb(primary); };
+    img.onerror = function () { if (cb) cb(fallback || primary); };
+    img.src = primary;
+  }
+  // 四张贴图并行探测（白天/夜晚/星空/bump），全部有结果后回调
+  function resolveGlobeTextures(cb) {
+    var pending = 4;
+    var out = {};
+    function one(key, primary, fallback) {
+      resolveTexture(primary, fallback, function (url) {
+        out[key] = url;
+        if (--pending === 0) { resolvedTex = out; if (cb) cb(); }
+      });
+    }
+    one('day', G.localDay || G.cdnDay, G.cdnDayFallback);
+    one('night', G.localNight || G.cdnNight, G.cdnNightFallback);
+    one('sky', G.localSky || G.cdnSky, G.cdnSkyFallback);
+    one('topology', G.cdnTopology, G.cdnTopologyFallback);
+  }
+
+  // 最高清渲染（globe.gl 2.46.2 真实 API，见 README/源码核实）：
+  // - rendererConfig 默认已是 { antialias: true, alpha: true }，initGlobe 里
+  //   再显式写一次，防止默认值被改；
+  // - renderer().setPixelRatio(min(devicePixelRatio, 2))：默认是 1，高分屏
+  //   上不设会糊；上限 2，兼顾性能；
+  // - globeMaterial().map / .bumpMap 的 anisotropy 取
+  //   renderer.capabilities.getMaxAnisotropy()（库里默认是 1，斜视地球
+  //   边缘时贴图会糊）；过滤本身 three 默认已是线性 mipmap（minFilter
+  //   LinearMipmapLinearFilter=1008，magFilter LinearFilter=1006），这里
+  //   显式写一遍（THREE 没暴露成全局变量，用数值常量并在注释里注明）。
+  //   注意：three-globe 的球体是写死的 SphereGeometry(r, 75, 75)，没有
+  //   公开可调的分段参数，所以几何细节已是库内最高，无法再调。
+  // 贴图是异步加载的，换主题重设 globeImageUrl 后也会换成默认 anisotropy，
+  // 所以在 onGlobeReady、延时重试、updateGlobeTheme 里都调一次。
+  function applyGlobeHiRes() {
+    if (!globeInstance) return;
+    try {
+      var r = globeInstance.renderer();
+      if (!r) return;
+      r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      var maxAniso = r.capabilities.getMaxAnisotropy();
+      var mat = globeInstance.globeMaterial();
+      if (mat) {
+        [mat.map, mat.bumpMap].forEach(function (tex) {
+          if (!tex) return;
+          tex.anisotropy = maxAniso;
+          tex.minFilter = 1008; // THREE.LinearMipmapLinearFilter
+          tex.magFilter = 1006; // THREE.LinearFilter
+          tex.needsUpdate = true;
+        });
+      }
+    } catch (e) { console.warn('[NezhaBeautify] hi-res apply failed', e); }
+  }
 
   // 国家代码 → 经纬度（与原版 COORD_MAP 一致）
   var COORD_MAP = {
@@ -1195,21 +1269,28 @@ function initializeEarth() {
     'AQ': [-75.2509, -0.0713]
   };
 
+  // 弧线/国旗辉光颜色：夜间冰蓝 #7dd3fc，白天绿色 #22c55e（与 Komari 参考图一致）
+  function globeLineColor() { return NB.isDark() ? '#7dd3fc' : '#22c55e'; }
+  // 光圈颜色：夜间冰蓝，白天太阳色（暖黄 #fbbf24）
+  function globeRingColor() { return NB.isDark() ? '#7dd3fc' : '#fbbf24'; }
+
   function getBackgroundConfig() {
     var isLight = !NB.isDark();
     var bg = 'rgba(0, 0, 0, 0)';
     if (isLight) {
       return {
         bg: bg, bgImage: null,
-        globeImage: G.localDay || G.cdnDay,
-        atmosphere: 'rgba(59, 130, 246, 0.2)'
+        globeImage: resolvedTex.day || G.localDay || G.cdnDay,
+        atmosphere: 'rgba(59, 130, 246, 0.2)',
+        arc: globeLineColor(), ring: globeRingColor()
       };
     }
     return {
       bg: bg,
-      bgImage: G.localSky || G.cdnSky,
-      globeImage: G.localNight || G.cdnNight,
-      atmosphere: NB.themeColor()
+      bgImage: resolvedTex.sky || G.localSky || G.cdnSky,
+      globeImage: resolvedTex.night || G.localNight || G.cdnNight,
+      atmosphere: 'rgba(125, 211, 252, 0.35)',
+      arc: globeLineColor(), ring: globeRingColor()
     };
   }
 
@@ -1239,9 +1320,16 @@ function initializeEarth() {
         var servers = await NB.getServers();
         var processed = processData(servers || []);
         if (counterValue) counterValue.innerText = processed.totalCount;
-        initGlobe(processed.formattedData, processed.arcsData);
-        isGlobeInitialized = true;
-        setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        // 先探测贴图（主链失败自动换 jsdelivr 回退），再建地球，
+        // 否则 getBackgroundConfig 拿不到回退地址
+        if (isResolvingTextures) return;
+        isResolvingTextures = true;
+        resolveGlobeTextures(function () {
+          isResolvingTextures = false;
+          initGlobe(processed.formattedData, processed.arcsData);
+          isGlobeInitialized = true;
+          setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        });
       } catch (e) { console.error(e); }
     } else {
       setTimeout(function () {
@@ -1317,7 +1405,7 @@ function initializeEarth() {
       if (currentActiveFlag.classList.contains('earth-flag-img')) {
         currentActiveFlag.style.transform = 'translate(-50%, -50%) scale(1)';
         currentActiveFlag.style.zIndex = 'auto';
-        currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + NB.themeColor() + ')';
+        currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + globeLineColor() + ')';
       }
       currentActiveFlag = null;
     }
@@ -1326,7 +1414,7 @@ function initializeEarth() {
 
   function initGlobe(pointsData, arcsData) {
     var config = getBackgroundConfig();
-    var themeColor = NB.themeColor();
+    var lineColor = config.arc;
     var w = renderArea.clientWidth;
     var h = renderArea.clientHeight;
     var hasOverlap = checkOverlap(pointsData);
@@ -1334,10 +1422,12 @@ function initializeEarth() {
     var initialAltitude = isMobile ? 3.0 : 2.0;
     globeInstance = Globe()(renderArea)
       .width(w).height(h)
+      .rendererConfig({ antialias: true, alpha: true })
+      .onGlobeReady(function () { applyGlobeHiRes(); })
       .backgroundColor(config.bg)
       .backgroundImageUrl(config.bgImage)
       .globeImageUrl(config.globeImage)
-      .bumpImageUrl(G.cdnTopology)
+      .bumpImageUrl(resolvedTex.topology || G.cdnTopology)
       .atmosphereColor(config.atmosphere)
       .atmosphereAltitude(0.15)
       .htmlElementsData(pointsData)
@@ -1384,6 +1474,7 @@ function initializeEarth() {
           img.alt = d.code;
           img.className = 'earth-flag-img';
           img.style.pointerEvents = 'auto';
+          img.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
           img.onerror = function () { img.style.display = 'none'; };
           var updateFlagSize = function () {
             if (!globeInstance) return;
@@ -1392,19 +1483,21 @@ function initializeEarth() {
             var newSize = calculateFlagSize(altitude);
             if (hasOverlap && altitude < 1.5) newSize = Math.max(24, newSize * 0.7);
             img.style.width = newSize + 'px';
+            // 国旗固定 3:2（参考图比例），高度随宽度走
+            img.style.height = Math.round(newSize * 2 / 3) + 'px';
           };
           updateFlagSize();
           globeInstance.controls().addEventListener('change', updateFlagSize);
           img.onmouseenter = function () {
             if (currentActiveFlag !== img) {
               img.style.transform = 'translate(-50%, -50%) scale(1.3)';
-              img.style.filter = 'drop-shadow(0 0 6px ' + themeColor + ')';
+              img.style.filter = 'drop-shadow(0 0 6px ' + lineColor + ')';
             }
           };
           img.onmouseleave = function () {
             if (currentActiveFlag !== img) {
               img.style.transform = 'translate(-50%, -50%) scale(1)';
-              img.style.filter = 'drop-shadow(0 0 4px ' + themeColor + ')';
+              img.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
             }
           };
           img.onclick = function (e) {
@@ -1413,13 +1506,13 @@ function initializeEarth() {
             if (currentActiveFlag && currentActiveFlag.classList.contains('earth-flag-img')) {
               currentActiveFlag.style.transform = 'translate(-50%, -50%) scale(1)';
               currentActiveFlag.style.zIndex = 'auto';
-              currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + themeColor + ')';
+              currentActiveFlag.style.filter = 'drop-shadow(0 0 4px ' + lineColor + ')';
             }
             globeInstance.controls().autoRotate = false;
             currentActiveFlag = img;
             img.style.transform = 'translate(-50%, -50%) scale(1.5)';
             img.style.zIndex = '1000';
-            img.style.filter = 'drop-shadow(0 0 8px ' + themeColor + ')';
+            img.style.filter = 'drop-shadow(0 0 8px ' + lineColor + ')';
             var rect = img.getBoundingClientRect();
             var parentRect = renderArea.getBoundingClientRect();
             tooltip.style.display = 'block';
@@ -1449,7 +1542,7 @@ function initializeEarth() {
         return el;
       })
       .ringsData(pointsData.filter(function (item) { return item.type === 'server'; }))
-      .ringColor(function () { return '#3b82f6'; })
+      .ringColor(function () { return config.ring; })
       .ringMaxRadius(2)
       .ringPropagationSpeed(1)
       .ringRepeatPeriod(1250)
@@ -1458,12 +1551,16 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      .arcColor(function () { return '#3b82f6'; })
-      .arcDashLength(0.5)
-      .arcDashGap(1)
-      .arcDashAnimateTime(1750)
-      .arcStroke(0.8)
+      // 弧线：参考图是细实线，夜间冰蓝、白天绿色，线宽 0.3
+      .arcColor(function () { return config.arc; })
+      .arcDashLength(1)
+      .arcDashGap(0)
+      .arcDashAnimateTime(0)
+      .arcStroke(0.3)
       .arcAltitudeAutoScale(0.5);
+    // 贴图异步加载，bump 可能比主贴图晚到；onGlobeReady 之外再延时补一次
+    applyGlobeHiRes();
+    setTimeout(applyGlobeHiRes, 1500);
     var viewLat = window.currentUserGeo ? window.currentUserGeo.lat : 25;
     var viewLng = window.currentUserGeo ? window.currentUserGeo.lng : 110;
     globeInstance.pointOfView({ lat: viewLat, lng: viewLng, altitude: initialAltitude });
@@ -1494,13 +1591,19 @@ function initializeEarth() {
       lastAppliedThemeConfig.bg !== newConfig.bg ||
       lastAppliedThemeConfig.bgImage !== newConfig.bgImage ||
       lastAppliedThemeConfig.globeImage !== newConfig.globeImage ||
-      lastAppliedThemeConfig.atmosphere !== newConfig.atmosphere;
+      lastAppliedThemeConfig.atmosphere !== newConfig.atmosphere ||
+      lastAppliedThemeConfig.arc !== newConfig.arc ||
+      lastAppliedThemeConfig.ring !== newConfig.ring;
     if (!hasChanged) return;
     globeInstance.backgroundColor(newConfig.bg);
     globeInstance.backgroundImageUrl(newConfig.bgImage);
     globeInstance.globeImageUrl(newConfig.globeImage);
+    // 换贴图后新纹理的 anisotropy 会回到默认 1，延时重新拉满
+    setTimeout(applyGlobeHiRes, 800);
     globeInstance.atmosphereColor(newConfig.atmosphere);
-    lastAppliedThemeConfig = { bg: newConfig.bg, bgImage: newConfig.bgImage, globeImage: newConfig.globeImage, atmosphere: newConfig.atmosphere };
+    globeInstance.arcColor(function () { return newConfig.arc; });
+    globeInstance.ringColor(function () { return newConfig.ring; });
+    lastAppliedThemeConfig = { bg: newConfig.bg, bgImage: newConfig.bgImage, globeImage: newConfig.globeImage, atmosphere: newConfig.atmosphere, arc: newConfig.arc, ring: newConfig.ring };
   }
 
   overlay.addEventListener('click', function (e) {
