@@ -1861,21 +1861,28 @@ function initializeEarth() {
   if (!ball || !overlay || !renderArea) return;
 
   // 诊断状态：重测时读 window.__nbEarth 就能定位到哪一步，不用猜。
-  // state: idle | loading-lib | loading-data | ready | error
+  // state: idle | loading-lib | loading-data | loading-textures | ready | error
   window.__nbEarth = window.__nbEarth || { state: 'idle', libLoaded: false, lastError: null, initAttempts: 0 };
   var earthDiag = window.__nbEarth;
   // 状态条在 renderArea 外面，不受 renderArea opacity:0 影响；旧版把
   // “正在加载/加载失败”写进 renderArea 里，弹窗空白时提示本身也看不见。
+  // 每次按 id 重查元素（不用闭包里缓存的 statusEl）：守护者用快照重建
+  // 弹窗节点后，旧闭包里的 statusEl 指向已脱离文档的节点，写它等于白写。
   function showEarthStatus(msg, isError) {
-    if (!statusEl) return;
-    statusEl.textContent = msg;
-    statusEl.style.display = 'block';
-    statusEl.style.color = isError ? 'var(--nb-danger)' : 'var(--nb-muted)';
+    var el = document.getElementById('earth-status') || statusEl;
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.color = isError ? 'var(--nb-danger)' : 'var(--nb-muted)';
   }
-  function hideEarthStatus() { if (statusEl) statusEl.style.display = 'none'; }
+  function hideEarthStatus() {
+    var el = document.getElementById('earth-status') || statusEl;
+    if (el) el.style.display = 'none';
+  }
   // 关闭弹窗：关闭按钮、Esc、点遮罩都走这里。每次初始化都刷新
   // window.__nbEarthClose，守护者重建节点后 Esc 仍能关最新的弹窗。
   function closeEarthModal() {
+    hideEarthStatus();
     hideTooltip();
     var ov = document.getElementById('earth-modal-overlay');
     var mc = document.getElementById('earth-modal-content');
@@ -2054,12 +2061,55 @@ function initializeEarth() {
     return null;
   }
 
+  // 贴图真正到齐才算“出来”：initGlobe 只建好实例，2k 贴图是 three.js
+  // 异步加载的，冷 CDN 下要几十秒；这段时间状态条必须一直显示，否则
+  // 弹窗就是一片空白、没有任何提示。旧版建完实例就立刻 hideEarthStatus()，
+  // ready class 也只管画布淡入、不管贴图到没到——重测 9 次打开一次也没
+  // 见到状态条，就是这个原因（见点击处理里的注释）。
+  // 以 globeMaterial().map 的 image 完全加载为准轮询，每 500ms 查一次；
+  // 60 秒兜底隐藏，避免贴图 404 等情况下状态条永远挂着；弹窗关了就停。
+  var TEX_WAIT_TIMEOUT_MS = 60000;
+  var TEX_WAIT_POLL_MS = 500;
+  function globeTextureReady() {
+    try {
+      if (!globeInstance) return false;
+      var mat = globeInstance.globeMaterial();
+      if (!mat || !mat.map) return false;
+      var img = mat.map.image;
+      return !!(img && img.complete && img.naturalWidth > 0);
+    } catch (e) { return false; }
+  }
+  function waitForGlobeTexture() {
+    var waited = 0;
+    (function poll() {
+      var ov = document.getElementById('earth-modal-overlay');
+      if (!ov || ov.style.display !== 'flex') return; // 弹窗已关，不再轮询
+      if (globeTextureReady()) {
+        hideEarthStatus();
+        earthDiag.state = 'ready';
+        return;
+      }
+      waited += TEX_WAIT_POLL_MS;
+      if (waited >= TEX_WAIT_TIMEOUT_MS) { hideEarthStatus(); earthDiag.state = 'ready'; return; }
+      setTimeout(poll, TEX_WAIT_POLL_MS);
+    })();
+  }
+
   ball.addEventListener('click', async function () {
     overlay.style.display = 'flex';
     requestAnimationFrame(function () {
       overlay.style.opacity = '1';
       modalContent.style.transform = 'scale(1)';
     });
+    // 状态条必须在点击后立刻显示、且覆盖“等库、等数据、等贴图”全程：
+    // 旧版只在 Globe 未加载的分支里调 showEarthStatus，而页面启动时
+    // initializeApp 已在后台预加载了库，点球时 Globe 几乎总已存在，
+    // 那个分支根本走不到；已加载的分支里又没有任何显示调用，建完实例
+    // 还立刻 hideEarthStatus()，冷加载几十秒的空白期全程无提示——
+    // 这就是重测 9 次打开、两次 50 秒空白里状态条一次也没出现的原因。
+    // （不是 CSS/隐藏问题：元素在 renderArea 外面，不受 opacity:0 影响，
+    // showEarthStatus 本身也没问题，只是调用点 unreachable。）
+    showEarthStatus('正在加载地球仪，请稍候…', false);
     updateGlobeTheme();
     if (!isGlobeInitialized) {
       try {
@@ -2079,6 +2129,7 @@ function initializeEarth() {
           return;
         }
         earthDiag.state = 'loading-data';
+        showEarthStatus('正在加载服务器数据…', false);
         var servers = await NB.getServers();
         var processed = processData(servers || []);
         if (counterValue) counterValue.innerText = processed.totalCount;
@@ -2097,6 +2148,7 @@ function initializeEarth() {
         // ready（opacity 一直 0），外层 catch 又只 console.error，
         // 所以弹窗空白、计数 22、3 次点击全灭且看不到任何报错。
         // 现在 initGlobe 内部用工厂配置，报错也在这里记下来并显示出来。
+        showEarthStatus('正在加载地球贴图…', false);
         earthDiag.initAttempts++;
         try {
           initGlobe(processed.formattedData, processed.arcsData);
@@ -2106,10 +2158,12 @@ function initializeEarth() {
           showEarthStatus('地球初始化失败：' + earthDiag.lastError + '（可按 Esc 关闭后重试）', true);
           return;
         }
-        hideEarthStatus();
         isGlobeInitialized = true;
-        earthDiag.state = 'ready';
+        earthDiag.state = 'loading-textures';
         setTimeout(function () { renderArea.classList.add('ready'); }, 100);
+        // 注意：这里不再立刻 hideEarthStatus()——贴图还在异步加载，
+        // 等贴图到齐（或 60 秒兜底）再由 waitForGlobeTexture() 隐藏。
+        waitForGlobeTexture();
         if (!isResolvingTextures) {
           isResolvingTextures = true;
           resolveGlobeTextures(function () {
@@ -2126,7 +2180,16 @@ function initializeEarth() {
         showEarthStatus('地球加载失败：' + earthDiag.lastError + '（可按 Esc 关闭后重试）', true);
       }
     } else {
-      hideEarthStatus();
+      // 已建好：贴图到齐就直接藏状态条；若上次打开中途关了弹窗、
+      // 贴图还没到齐，重开时继续显示等待并接着轮询。
+      if (globeTextureReady()) {
+        hideEarthStatus();
+        earthDiag.state = 'ready';
+      } else {
+        earthDiag.state = 'loading-textures';
+        showEarthStatus('正在加载地球贴图…', false);
+        waitForGlobeTexture();
+      }
       setTimeout(function () {
         if (globeInstance) {
           globeInstance.width(renderArea.clientWidth);
@@ -2440,6 +2503,31 @@ function initializeEarth() {
     if (e.key === 'vite-ui-theme' && overlay.style.display === 'flex') updateGlobeTheme();
   });
   setTimeout(function () { ball.classList.add('show'); }, 600);
+
+  // 贴图后台预热（只暖缓存，不阻塞建地球）：页面空闲后用已有的
+  // resolveTexture（每张 3 秒超时）把白天/夜晚/bump 三张图先下载进
+  // 浏览器缓存，结果写入 resolvedTex；这样首次点球时建地球直接用已
+  // 验过的地址、贴图大概率已在缓存里，冷启动几十秒的空白会大幅缩短。
+  // 星空图不预热（4096，背景图，Globe.GL 异步加载，不挡球体）。
+  // 预热失败（超时/404）只影响缓存，点球时照常建地球再后台探测。
+  (function prewarmGlobeTexturesIdle() {
+    if (window.__nbTexPrewarmed) return;
+    window.__nbTexPrewarmed = true;
+    function go() {
+      try {
+        resolveTexture(G.localDay || G.cdnDay, G.cdnDayFallback, function (url) { resolvedTex.day = url; });
+        resolveTexture(G.localNight || G.cdnNight, G.cdnNightFallback, function (url) { resolvedTex.night = url; });
+        resolveTexture(G.cdnTopology, G.cdnTopologyFallback, function (url) { resolvedTex.topology = url; });
+      } catch (e) {}
+    }
+    try {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(function () { go(); }, { timeout: 5000 });
+      } else {
+        setTimeout(go, 2000);
+      }
+    } catch (e) { setTimeout(go, 2000); }
+  })();
 }
 
 /* ==========================================================================
@@ -2517,8 +2605,20 @@ function initializeApp() {
   try { initializeWelcomeBubble(); } catch (e) { console.warn('[NezhaBeautify] welcome init failed', e); }
   try { initializeFinanceWidget(); } catch (e) { console.warn('[NezhaBeautify] finance init failed', e); }
   try { initializeEarth(); } catch (e) { console.warn('[NezhaBeautify] earth init failed', e); }
-  // Globe.GL 后台预加载，不阻塞其它功能；失败时点地球仪会再试一次
-  try { ensureGlobeLib(function () {}); } catch (e) {}
+  // Globe.GL 后台预加载（1.9MB）：页面空闲后再下，不要和首屏抢带宽；
+  // 旧版在初始化时立即开始下，首屏还在加载时就争用网络。失败时点地球仪
+  // 会再试一次（那时状态条会显示“正在加载 Globe.GL…”）。requestIdleCallback
+  // 不存在时用 setTimeout 兜底。
+  (function preloadGlobeLibIdle() {
+    function go() { try { ensureGlobeLib(function () {}); } catch (e) {} }
+    try {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(function () { go(); }, { timeout: 3000 });
+      } else {
+        setTimeout(go, 1500);
+      }
+    } catch (e) { setTimeout(go, 1500); }
+  })();
 
   // 持久守护：v1 版只在启动时 attach 一次；v2 版持续观察 body，节点
   // 被 dispose/移走/删除都能恢复。只观察 body 的直接子节点，不盯 #root
