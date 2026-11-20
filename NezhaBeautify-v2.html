@@ -192,7 +192,8 @@
   pointer-events: auto;
   z-index: 1040;
 }
-/* 悬浮按钮（资产 + 地球共用） */
+/* 悬浮按钮（资产 + 地球共用）：按 Komari 站截图，不要边框、透底
+   （背景透明、无阴影、无毛玻璃），里面是 24px 描边图标 */
 .finance-ball {
   position: fixed;
   right: 20px;
@@ -200,11 +201,9 @@
   width: 45px;
   height: 45px;
   border-radius: 50%;
-  background-color: var(--nb-card);
-  border: 1px solid var(--nb-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 12px var(--nb-shadow);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   z-index: 1041;
   display: flex;
   align-items: center;
