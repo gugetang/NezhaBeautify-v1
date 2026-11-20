@@ -2362,11 +2362,15 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      // 弧线：参考图是细实线，夜间冰蓝、白天绿色，线宽 0.3
+      // 弧线：细线 + 流动虚线动画，夜间冰蓝、白天绿色，线宽 0.3
+      // dash 长度 0.5、间隔 0.2，1.5 秒一圈流动；每条弧线初始偏移随机，
+      // 避免所有弧线同步闪烁。three-globe 里 arcDashInitialGap 走 accessor，
+      // 传函数时按每条弧线调用，见源码 three-globe.js 的 dashInitialGapAccessor。
       .arcColor(function () { return config.arc; })
-      .arcDashLength(1)
-      .arcDashGap(0)
-      .arcDashAnimateTime(0)
+      .arcDashLength(0.5)
+      .arcDashGap(0.2)
+      .arcDashAnimateTime(1500)
+      .arcDashInitialGap(function () { return Math.random(); })
       .arcStroke(0.3)
       .arcAltitudeAutoScale(0.5);
     // 贴图异步加载，bump 可能比主贴图晚到；onGlobeReady 之外再延时补一次
