@@ -405,7 +405,7 @@ html.dark .welcome-bubble {
   height: 36px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 0 15px rgba(34, 197, 94, 0.55), 0 0 30px rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.55), 0 0 30px rgba(59, 130, 246, 0.35);
   cursor: pointer;
   z-index: 1002;
   animation: userPulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
@@ -413,7 +413,7 @@ html.dark .welcome-bubble {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 3px solid #22c55e;
+  border: 2px solid var(--nb-accent-solid);
 }
 .earth-user-marker img {
   width: 100%;
@@ -422,21 +422,18 @@ html.dark .welcome-bubble {
   border-radius: 50%;
 }
 @keyframes userPulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: translate(-50%, -50%) scale(1); }
-  50% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1.15); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: translate(-50%, -50%) scale(1); }
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: translate(-50%, -50%) scale(1); }
+  50% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: translate(-50%, -50%) scale(1); }
 }
 .earth-flag-img {
-  width: 36px;
-  height: 24px;
-  object-fit: cover;
+  width: 24px;
+  height: auto;
   display: block;
   cursor: pointer;
   transform: translate(-50%, -50%);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   filter: drop-shadow(0 0 4px var(--nb-accent-solid));
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 #earth-tooltip {
   position: absolute;
@@ -525,7 +522,6 @@ html.dark .welcome-bubble {
   .earth-overlay-counter { top: 10px; left: 10px; padding: 8px 12px; }
   .counter-label { font-size: 0.65rem; }
   .counter-value { font-size: 1.5rem; }
-  .earth-user-marker { width: 28px; height: 28px; }
 }
 </style>
 
@@ -750,34 +746,29 @@ var NezhaBeautifyConfig = Object.assign({
     // InjectContext 会逐个等待外链加载，失败会清掉整段自定义代码。
     globeLib: '//unpkg.com/globe.gl',
     globeLibFallback: 'https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js',
-    // 地球贴图（2k 级，2026-11-21 实测；上一版 4096 贴图 + 建地球前
-    // 等全部贴图探测完，导致地球加载不出来，见 resolveGlobeTextures）：
-    // 白天：three.js 官方 earth_atmos_2048.jpg，2048×1024（512,606B，
-    // jsdelivr gh 与 raw 均 200 且字节一致）；原 three-globe 的
-    // earth-day.jpg 只有 1600×800，earth-blue-marble.jpg 是 4096×2048
-    // （1.4MB），都已换掉。unpkg 的 three npm 包不带 textures 目录，
-    // earth_atmos_2048.jpg 在 unpkg/jsdelivr npm 上都是 404，别用。
-    // 夜晚：three.js 官方 earth_lights_2048.png，2048×1024（734,910B，
-    // 深蓝底 + 城市灯光，全图实测有亮点；jsdelivr gh 与 raw 均 200 且
-    // 字节一致）；注意文件名是 .png，.jpg 是 404。earth-dark.jpg 虽然
-    // 也是 2048×1024，但实测接近纯黑（均值 11,11,11，几乎无灯光），
-    // 不能做夜图。原 earth-night.jpg 4096×2048（715,000B）已换掉。
-    // 星空：three-globe / three.js 官方来源里只有 night-sky.png
-    // 4096×2048（904,154B）这一张，没有可靠的 2k 星空图（web 搜索只
-    // 找到未验证的 AI 纹理站，无直接图片 URL，不用）；所以星空仍用原图，
-    // 但不再参与建地球前的探测，建好地球后由 Globe.GL 异步加载，不阻塞。
-    // bump：earth-topology.png 本来就是 2048×1024，保留。
-    // 每张贴图都有回退地址（同文件、实测 200 且字节数与主链一致）；
-    // 主链加载失败或 3 秒超时，resolveGlobeTextures() 自动换回退地址。
-    cdnDay: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg',
-    cdnDayFallback: 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/earth_atmos_2048.jpg',
-    cdnNight: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_lights_2048.png',
-    cdnNightFallback: 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/planets/earth_lights_2048.png',
-    cdnSky: '//unpkg.com/three-globe/example/img/night-sky.png',
+    // 地球贴图（8K 级，照搬参考项目 gugetang/Komari-Beautify）：
+    // 白天/夜晚/bump 都用 wikimedia Solarsystemscope 8K 图，夜晚背景用
+    // ESO 银河图。实测 8K 白天图海洋均值 (75, 97, 141)，比之前 2K 的
+    // earth_atmos (80, 90, 107) 更亮更蓝；上一版 4096 蓝大理石更暗，
+    // 已排除。8K 图较大（白天 4.5MB、夜晚 3.1MB、银河 7.5MB），
+    // 状态条会在等贴图时一直显示加载提示，贴图到了才消失。
+    // 贴图来源：照搬参考项目 gugetang/Komari-Beautify（KomariBeautify.html
+    // getBackgroundConfig / initGlobe）：白天/夜晚/bump 都用 wikimedia 的
+    // Solarsystemscope 8K 贴图，夜晚背景用 ESO 银河图。主链是 jsDelivr 上
+    // 该仓库的镜像（实测 200：白天 4,565,076B、夜晚 3,144,468B、银河
+    // 7,585,150B），回退是参考项目同款的 wikimedia 原地址；主链加载失败
+    // 或 3 秒超时，resolveGlobeTextures() 自动换回退地址。
+    cdnDay: 'https://cdn.jsdelivr.net/gh/gugetang/Komari-Beautify@master/images/wikimedia/8k/Solarsystemscope_texture_8k_earth_daymap.jpg',
+    cdnDayFallback: 'https://upload.wikimedia.org/wikipedia/commons/0/04/Solarsystemscope_texture_8k_earth_daymap.jpg',
+    cdnNight: 'https://cdn.jsdelivr.net/gh/gugetang/Komari-Beautify@master/images/wikimedia/8k/Solarsystemscope_texture_8k_earth_nightmap.jpg',
+    cdnNightFallback: 'https://upload.wikimedia.org/wikipedia/commons/b/b3/Solarsystemscope_texture_8k_earth_nightmap.jpg',
+    cdnSky: 'https://cdn.jsdelivr.net/gh/gugetang/Komari-Beautify@master/images/wikimedia/ESO_-_Milky_Way.jpg',
     cdnSkyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png',
-    cdnTopology: '//unpkg.com/three-globe/example/img/earth-topology.png',
-    cdnTopologyFallback: 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png',
-    // 本项目 images/ 里有上述三张图的本地副本；如需用自己的图床，
+    // bump：参考项目用的就是 8K 夜晚图（不是地形图），照搬。
+    cdnTopology: 'https://cdn.jsdelivr.net/gh/gugetang/Komari-Beautify@master/images/wikimedia/8k/Solarsystemscope_texture_8k_earth_nightmap.jpg',
+    cdnTopologyFallback: 'https://upload.wikimedia.org/wikipedia/commons/b/b3/Solarsystemscope_texture_8k_earth_nightmap.jpg',
+    // 本项目 images/ 里有旧版三张图的本地副本；新版 8K 贴图在
+    // Komari-Beautify 仓库 images/wikimedia/8k/。如需用自己的图床，
     // 把下面三项改成你自己的 URL 即可（留空则用 CDN）。
     localDay: '',
     localNight: '',
@@ -2029,10 +2020,18 @@ function initializeEarth() {
     'AQ': [-75.2509, -0.0713]
   };
 
-  // 弧线/国旗辉光颜色：夜间冰蓝 #7dd3fc，白天绿色 #22c55e（与 Komari 参考图一致）
-  function globeLineColor() { return NB.isDark() ? '#7dd3fc' : '#22c55e'; }
-  // 光圈颜色：夜间冰蓝，白天太阳色（暖黄 #fbbf24）
-  function globeRingColor() { return NB.isDark() ? '#7dd3fc' : '#fbbf24'; }
+  // 主题色：照搬参考项目 Komari-Beautify 的 getThemeColor()——读 --accent-9，
+  // 没有就回退 #3b82f6。弧线、光圈、夜晚大气层、国旗辉光都用这一个颜色，
+  // 白天夜晚不再分绿/冰蓝。
+  function globeThemeColor() {
+    var c = '';
+    try { c = getComputedStyle(document.documentElement).getPropertyValue('--accent-9').trim(); } catch (e) {}
+    return c || '#3b82f6';
+  }
+  // 弧线/国旗辉光颜色：主题色（参考项目）
+  function globeLineColor() { return globeThemeColor(); }
+  // 光圈颜色：主题色（参考项目）
+  function globeRingColor() { return globeThemeColor(); }
 
   function getBackgroundConfig() {
     var isLight = !NB.isDark();
@@ -2051,7 +2050,7 @@ function initializeEarth() {
       // 建地球）；主链失败时背景保持深色，不影响地球本体显示。
       bgImage: G.localSky || G.cdnSky,
       globeImage: resolvedTex.night || G.localNight || G.cdnNight,
-      atmosphere: 'rgba(125, 211, 252, 0.35)',
+      atmosphere: globeThemeColor(),
       arc: globeLineColor(), ring: globeRingColor()
     };
   }
@@ -2238,7 +2237,7 @@ function initializeEarth() {
   }
 
   function calculateFlagSize(altitude) {
-    var baseSize = 36, minSize = 24, maxSize = 48;
+    var baseSize = 24, minSize = 16, maxSize = 40;
     var zoomFactor = Math.max(0.5, Math.min(2, 3 - altitude));
     return Math.max(minSize, Math.min(maxSize, baseSize * zoomFactor));
   }
@@ -2312,15 +2311,16 @@ function initializeEarth() {
         if (d.type === 'user') {
           var marker = document.createElement('div');
           marker.className = 'earth-user-marker';
-          // You 标记：截图里是绿色圆形标记。这里用白色圆底 + 绿色圆环，
-          // 圆内放访客所在国家的国旗（flagcdn，已核实存在；加载失败则隐藏
-          // 图片，只剩绿色圆环）；拿不到国家代码时用绿色定位针 SVG（纯内联，
-          // 不依赖任何外部图片）。不再用 /favicon.ico。
+          // You 标记：参考项目是白色圆底 + 主题色圆环 + 脉冲。这里圆底白色、
+          // 圆环主题色（CSS 里已改成主题蓝），圆内放访客所在国家的国旗
+          // （flagcdn，已核实存在；加载失败则隐藏图片，只剩主题色圆环）；
+          // 拿不到国家代码时用主题蓝定位针 SVG（纯内联，不依赖任何外部图片）。
+          // 不再用参考项目的 /favicon.ico（那是 Komari 站标）。
           var userCc = (window.currentUserGeo && window.currentUserGeo.cc) ? String(window.currentUserGeo.cc).toLowerCase() : '';
           if (userCc) {
             marker.innerHTML = '<img src="https://flagcdn.com/w80/' + userCc + '.png" alt="You" onerror="this.style.display=\'none\'">';
           } else {
-            marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+            marker.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#3b82f6"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>';
           }
           marker.onclick = function (e) {
             e.stopPropagation();
@@ -2355,10 +2355,9 @@ function initializeEarth() {
             var controls = globeInstance.controls();
             var altitude = controls.getDistance ? controls.getDistance() / 200 : 2;
             var newSize = calculateFlagSize(altitude);
-            if (hasOverlap && altitude < 1.5) newSize = Math.max(24, newSize * 0.7);
+            if (hasOverlap && altitude < 1.5) newSize = Math.max(16, newSize * 0.7);
             img.style.width = newSize + 'px';
-            // 国旗固定 3:2（参考图比例），高度随宽度走
-            img.style.height = Math.round(newSize * 2 / 3) + 'px';
+            // 参考项目只定宽度、高度 auto，按国旗原图比例走
           };
           updateFlagSize();
           globeInstance.controls().addEventListener('change', updateFlagSize);
@@ -2425,16 +2424,17 @@ function initializeEarth() {
       .arcStartLng(function (d) { return d.startLng; })
       .arcEndLat(function (d) { return d.endLat; })
       .arcEndLng(function (d) { return d.endLng; })
-      // 弧线：细线 + 流动虚线动画，夜间冰蓝、白天绿色，线宽 0.3
-      // dash 长度 0.5、间隔 0.2，1.5 秒一圈流动；每条弧线初始偏移随机，
-      // 避免所有弧线同步闪烁。three-globe 里 arcDashInitialGap 走 accessor，
-      // 传函数时按每条弧线调用，见源码 three-globe.js 的 dashInitialGapAccessor。
+      // 弧线：照搬参考项目 Komari-Beautify——主题色、线宽 0.8，
+      // dash 长度 0.5、间隔 1（间隔拉大后流动的虚线段才看得见，不再像连续细线），
+      // 1.75 秒一圈流动；每条弧线初始偏移随机，避免所有弧线同步闪烁。
+      // three-globe 里 arcDashInitialGap 走 accessor，传函数时按每条弧线调用，
+      // 见源码 three-globe.js 的 dashInitialGapAccessor。
       .arcColor(function () { return config.arc; })
       .arcDashLength(0.5)
-      .arcDashGap(0.2)
-      .arcDashAnimateTime(1500)
+      .arcDashGap(1)
+      .arcDashAnimateTime(1750)
       .arcDashInitialGap(function () { return Math.random(); })
-      .arcStroke(0.3)
+      .arcStroke(0.8)
       .arcAltitudeAutoScale(0.5);
     // 贴图异步加载，bump 可能比主贴图晚到；onGlobeReady 之外再延时补一次
     applyGlobeHiRes();
