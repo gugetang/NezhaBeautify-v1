@@ -1704,6 +1704,10 @@ function initializeEarth() {
             // flag-icons 4x3 系列（640x480），宽 24 高 auto 渲染出来就是 4:3；
             // 宽取 4 的倍数使 4:3 精确（24x18、16x12、20x15……）
             img.style.height = Math.round(newSize * 3 / 4) + 'px';
+            // object-fit 也写行内：上一轮实测（9992dd2，3:2）发现旗面仍按
+            // 原生比例显示（US 35x19、CA 36x19），像 cover 没生效被当成
+            // contain 裁了，行内写死 cover 让裁切不依赖样式表
+            img.style.objectFit = 'cover';
             // 圆角同时写行内样式，防止样式表未生效时看不到圆角
             img.style.borderRadius = '6px';
           };
