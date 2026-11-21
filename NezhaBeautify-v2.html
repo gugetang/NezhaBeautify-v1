@@ -428,7 +428,9 @@ html.dark .welcome-bubble {
 }
 .earth-flag-img {
   width: 24px;
-  height: auto;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 6px;
   display: block;
   cursor: pointer;
   transform: translate(-50%, -50%);
@@ -2357,7 +2359,9 @@ function initializeEarth() {
             var newSize = calculateFlagSize(altitude);
             if (hasOverlap && altitude < 1.5) newSize = Math.max(16, newSize * 0.7);
             img.style.width = newSize + 'px';
-            // 参考项目只定宽度、高度 auto，按国旗原图比例走
+            // 所有国旗统一按 3:2 裁切（object-fit: cover），不同原图比例
+            // （如 AU 2:1、SG 3:2）显示尺寸一致；圆角 6px 见 CSS
+            img.style.height = Math.round(newSize * 2 / 3) + 'px';
           };
           updateFlagSize();
           globeInstance.controls().addEventListener('change', updateFlagSize);
